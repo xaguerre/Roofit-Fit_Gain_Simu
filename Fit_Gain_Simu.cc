@@ -31,7 +31,7 @@ const float charge_bin_max = 200000;
 
 TH1D* spectre_charge_it(int om_number )
 {
-  TFile *file = new TFile("../histo_kolmo/histo_donee/histo_charge_amplitude_422.root", "READ");
+  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_422.root", "READ");
   gROOT->cd();
   TH2F* charge = (TH2F*)file->Get("charge");
 
@@ -42,7 +42,7 @@ TH1D* spectre_charge_it(int om_number )
 
 TH1D* spectre_charge_XW(int om_number )
 {
-  TFile *file = new TFile("../histo_kolmo/histo_donee/histo_charge_amplitude_energie_449.root", "READ");
+  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_449.root", "READ");
   gROOT->cd();
   TH2F* charge = (TH2F*)file->Get("histo_pm_charge");
 
@@ -53,7 +53,7 @@ TH1D* spectre_charge_XW(int om_number )
 
 TH1D* spectre_charge_fr(int om_number )
 {
-  TFile *file = new TFile("../histo_kolmo/histo_donee/histo_charge_amplitude_energie_435.root", "READ");
+  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_435.root", "READ");
   gROOT->cd();
   TH2F* charge = (TH2F*)file->Get("histo_pm_charge");
 
@@ -194,6 +194,12 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
 {
   const float start_x = spectre_om->GetXaxis()->GetBinUpEdge(105);
 
+  mc0->Scale(mc0->Integral()/spectre_om->Integral());
+  mc1->Scale(mc1->Integral()/spectre_om->Integral());
+  mc2->Scale(mc2->Integral()/spectre_om->Integral());
+
+
+
 
   std::cout << gain << '\n';
   RooRealVar x("x", "x", 0, 100000);
@@ -217,10 +223,10 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
 
   RooRealSumPdf sum_simu("sum_simu", "sum_simu",
   RooArgList(p_ph_Tl, p_ph_Bi, p_ph_K),
-  RooArgList(RooTl,RooBi),
-  true);
+  RooArgList(RooTl,RooBi,RooK),
+  false);
 
-  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(3), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(0));
+  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(3), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-0.2));
   sum_simu.setStringAttribute("fitrange", nullptr);
   TCanvas* can = new TCanvas("can", "", 1500, 600);
   can->cd();
@@ -228,35 +234,38 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   // Plot data to enable automatic determination of model0 normalisation:
   // sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
 
+  std::cout << "messafe " << p_ph_Tl.Integral() << '\n';
   // spectre_data.plotOn(frame);
   // Plot data again to show it on top of model0 error bands:
-  spectre_data.plotOn(frame);
-  sum_simu.plotOn(frame, LineColor(kRed));
+  // spectre_data.plotOn(frame);
+  // sum_simu.plotOn(frame, LineColor(kRed));
 
   // Plot model components
-  sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen));
-  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure));
-  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack));
-  sum_simu.paramOn(frame);
+  // sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen));
+  // sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure));
+  // sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack));
+  // sum_simu.paramOn(frame);
 
-  // BiData->plotOn(frame, MarkerColor(kBlue));
-  // frame->SetAxisRange(0.1, 2000, "Y");
   frame->GetYaxis()->UnZoom();
   frame ->Draw();
   can->SetLogy();
   can->SaveAs(Form("Best_fit/best_fit_om_%d_eres_%.2f_gain_%.0f.png", om, eres, gain));
-  // result1->printValue(cout);
+  // result1->Print("v");
   // result1->Print();
   rootab[0] = result1->minNll();
   rootab[1] = RooTl.getVal();
   rootab[2] = RooBi.getVal();
   rootab[3] = 1-RooTl.getVal() - RooBi.getVal();
+  //
+  // rootab[1] = sum_simu_Norm
+  // rootab[2] = RooBi.getVal();
+  // rootab[3] = 1-RooTl.getVal() - RooBi.getVal();
 
   cout << "chi^2 = " << frame->chiSquare() << endl;
 
-  delete frame;
-  delete can;
-  delete result1;
+  // delete frame;
+  // delete can;
+  // delete result1;
   return rootab;
 }
 
@@ -330,7 +339,7 @@ void Fit_Gain_Simu() {
     }
 
     for (int eres_count = 15; eres_count < 16; eres_count++) {
-      for (int gain_count = 45; gain_count <46; gain_count++) {
+      for (int gain_count = 53; gain_count <54; gain_count++) {
         std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/charge_valeur_fit[om]*0.9 << "   sup  ="  << 1/charge_valeur_fit[om]*1.1 << '\n';
         // if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > charge_valeur_fit[om]*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<charge_valeur_fit[om]*1.15)){
           gain = (gain_bin_min + gain_bin_width*(gain_count-1));
@@ -344,7 +353,6 @@ void Fit_Gain_Simu() {
           integrale_tot_Tl = mc0->Integral(0, 1024);
           integrale_tot_Bi = mc1->Integral(0, 1024);
           integrale_tot_K = mc2->Integral(0, 1024);
-
 
           for (size_t i = 0; i < lim; i++) {
             mc0->SetBinContent(i, 0);
@@ -360,21 +368,22 @@ void Fit_Gain_Simu() {
           param1 = rootab[1];
           param2 = rootab[2];
           param3 = rootab[3];
-
-          mc0->Scale(param1/spectre_om->Integral());
-          double om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/650;
+          return;
+          double om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/655;
           std::cout << "om flux Tl = " << om_flux_Tl << '\n';
-          double om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/650;
+          double om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/655;
           std::cout << "om flux Bi = " << om_flux_Bi << '\n';
-          double om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/650;
+          double om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
           std::cout << "om flux K = " << om_flux_K << '\n';
           // return;
 
+
+
 	        Result_tree.Fill();
 
-          delete mc0;
-          delete mc1;
-          delete mc2;
+          // delete mc0;
+          // delete mc1;
+          // delete mc2;
         // }
       }
     }
