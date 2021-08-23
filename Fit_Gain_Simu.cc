@@ -194,11 +194,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
 {
   const float start_x = spectre_om->GetXaxis()->GetBinUpEdge(105);
 
-  mc0->Scale(mc0->Integral()/spectre_om->Integral());
-  mc1->Scale(mc1->Integral()/spectre_om->Integral());
-  mc2->Scale(mc2->Integral()/spectre_om->Integral());
-
-
+  mc0->Scale(1/mc0->Integral());
+  mc1->Scale(1/mc1->Integral());
+  mc2->Scale(1/mc2->Integral());
 
 
   std::cout << gain << '\n';
@@ -226,25 +224,25 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   RooArgList(RooTl,RooBi,RooK),
   false);
 
-  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(3), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-0.2));
+  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(0), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-10));
   sum_simu.setStringAttribute("fitrange", nullptr);
   TCanvas* can = new TCanvas("can", "", 1500, 600);
   can->cd();
   auto frame = x.frame(Title("Fit gain simu"));
   // Plot data to enable automatic determination of model0 normalisation:
-  // sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
+  sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
 
-  std::cout << "messafe " << p_ph_Tl.Integral() << '\n';
-  // spectre_data.plotOn(frame);
+  // std::cout << "messafe " << p_ph_Tl << '\n';
+  spectre_data.plotOn(frame);
   // Plot data again to show it on top of model0 error bands:
-  // spectre_data.plotOn(frame);
-  // sum_simu.plotOn(frame, LineColor(kRed));
+  spectre_data.plotOn(frame);
+  sum_simu.plotOn(frame, LineColor(kRed));
 
   // Plot model components
-  // sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen));
-  // sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure));
-  // sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack));
-  // sum_simu.paramOn(frame);
+  sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen));
+  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure));
+  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack));
+  sum_simu.paramOn(frame);
 
   frame->GetYaxis()->UnZoom();
   frame ->Draw();
@@ -255,13 +253,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   rootab[0] = result1->minNll();
   rootab[1] = RooTl.getVal();
   rootab[2] = RooBi.getVal();
-  rootab[3] = 1-RooTl.getVal() - RooBi.getVal();
-  //
-  // rootab[1] = sum_simu_Norm
-  // rootab[2] = RooBi.getVal();
-  // rootab[3] = 1-RooTl.getVal() - RooBi.getVal();
+  rootab[3] = RooK.getVal();
 
-  cout << "chi^2 = " << frame->chiSquare() << endl;
+  // cout << "chi^2 = " << frame->chiSquare() << endl;
 
   // delete frame;
   // delete can;
@@ -324,7 +318,7 @@ void Fit_Gain_Simu() {
   // histo->cd();
   // TH1D* MC = (TH1D*)histo->Get("MC");
 
-  for (int om = 100; om < 101; om++)
+  for (int om = 99; om < 100; om++)
   {
     int lim = 140;
     // if (((om%13)==12) || ((om%13)==0))continue;
@@ -368,22 +362,24 @@ void Fit_Gain_Simu() {
           param1 = rootab[1];
           param2 = rootab[2];
           param3 = rootab[3];
-          return;
+
+          mc0->Scale(param1*spectre_om->Integral());
           double om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/655;
           std::cout << "om flux Tl = " << om_flux_Tl << '\n';
+          mc1->Scale(param2*spectre_om->Integral());
           double om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/655;
           std::cout << "om flux Bi = " << om_flux_Bi << '\n';
+          mc2->Scale(param3*spectre_om->Integral());
           double om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
           std::cout << "om flux K = " << om_flux_K << '\n';
-          // return;
 
 
 
 	        Result_tree.Fill();
 
-          // delete mc0;
-          // delete mc1;
-          // delete mc2;
+          delete mc0;
+          delete mc1;
+          delete mc2;
         // }
       }
     }
