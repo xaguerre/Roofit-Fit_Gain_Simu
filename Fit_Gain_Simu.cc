@@ -198,8 +198,6 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   mc1->Scale(1/mc1->Integral());
   mc2->Scale(1/mc2->Integral());
 
-
-  std::cout << gain << '\n';
   RooRealVar x("x", "x", 0, 100000);
   RooDataHist Tl("Tl", "Tl", x, Import(*mc0));
   RooDataHist Bi("Bi", "Bi", x, Import(*mc1));
@@ -224,7 +222,7 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   RooArgList(RooTl,RooBi,RooK),
   false);
 
-  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(0), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-10));
+  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(0), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-1), Minimizer("Minuit"));
   sum_simu.setStringAttribute("fitrange", nullptr);
   TCanvas* can = new TCanvas("can", "", 1500, 600);
   can->cd();
@@ -232,17 +230,30 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   // Plot data to enable automatic determination of model0 normalisation:
   sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
 
+
   // std::cout << "messafe " << p_ph_Tl << '\n';
   spectre_data.plotOn(frame);
   // Plot data again to show it on top of model0 error bands:
-  spectre_data.plotOn(frame);
-  sum_simu.plotOn(frame, LineColor(kRed));
+  spectre_data.plotOn(frame, Name("spectre_hist"));
+  sum_simu.plotOn(frame, LineColor(kRed), Name("sum_curve"));
+  rootab[4] = frame->chiSquare();
 
   // Plot model components
-  sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen));
-  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure));
-  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack));
+  sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen), Name("Tl_curve"));
+  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure), Name("Bi_curve"));
+  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack), Name("K_curve"));
   sum_simu.paramOn(frame);
+
+  RooCurve * Tl_curve = frame->getCurve("Tl_curve");
+  double Tl_int = Tl_curve->average(start_x,65000);
+  RooCurve * Bi_curve = frame->getCurve("Bi_curve");
+  double Bi_int = Bi_curve->average(start_x,65000);
+  RooCurve * K_curve = frame->getCurve("K_curve");
+  double K_int = K_curve->average(start_x,65000);
+  RooCurve * sum_curve = frame->getCurve("sum_curve");
+  double int_data = sum_curve->average(start_x,65000);
+  // RooHist * spectre_hist = frame->getHist("spectre_hist");
+  // double int_data = spectre_hist->getFitRangeNEvt(start_x, 65000);
 
   frame->GetYaxis()->UnZoom();
   frame ->Draw();
@@ -251,15 +262,18 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   // result1->Print("v");
   // result1->Print();
   rootab[0] = result1->minNll();
-  rootab[1] = RooTl.getVal();
-  rootab[2] = RooBi.getVal();
-  rootab[3] = RooK.getVal();
+  rootab[1] = Tl_int/int_data;
+  rootab[2] = Bi_int/int_data;
+  rootab[3] = K_int/int_data;
 
-  // cout << "chi^2 = " << frame->chiSquare() << endl;
+  std::cout << "Tl  =" << rootab[1]<< '\n';
+  std::cout << "Bi  =" << rootab[2]<< '\n';
+  std::cout << "K  =" << rootab[3]<< '\n';
+  std::cout << "Tot  =" << rootab[3]+rootab[1]+rootab[2]<< '\n';
 
-  // delete frame;
-  // delete can;
-  // delete result1;
+  delete can;
+  delete frame;
+  delete result1;
   return rootab;
 }
 
@@ -281,6 +295,7 @@ void Fit_Gain_Simu() {
   TH1::SetDefaultSumw2();
 
   double logL = 0;
+  double Chi2 = 0;
   double param1 = 0;
   double param2 = 0;
   double param3 = 0;
@@ -293,6 +308,7 @@ void Fit_Gain_Simu() {
   TFile *newfile = new TFile("histo_fit/histo_roofit.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
+  Result_tree.Branch("Chi2", &Chi2);
   Result_tree.Branch("param1", &param1);
   Result_tree.Branch("param2", &param2);
   Result_tree.Branch("param3", &param3);
@@ -308,17 +324,17 @@ void Fit_Gain_Simu() {
   {
     charge >> charge_valeur_fit[charge_om_num];
   }
-  double* rootab = new double[4];
+  double* rootab = new double[5];
 
 
-  TH3D* MC_Tl_208 = MC(1, "GV");
-  TH3D* MC_Bi_214 = MC(2, "GV");;
-  TH3D* MC_K_40 = MC(3, "GV");;
+  TH3D* MC_Tl_208 = MC(1, "MW8");
+  TH3D* MC_Bi_214 = MC(2, "MW8");;
+  TH3D* MC_K_40 = MC(3, "MW8");;
   // TFile *histo = new TFile("Histo_simu_new/Histo_mystere.root", "READ");
   // histo->cd();
   // TH1D* MC = (TH1D*)histo->Get("MC");
 
-  for (int om = 99; om < 100; om++)
+  for (int om = 222; om < 223; om++)
   {
     int lim = 140;
     // if (((om%13)==12) || ((om%13)==0))continue;
@@ -332,8 +348,8 @@ void Fit_Gain_Simu() {
       spectre_om->SetBinContent(bin, 0);
     }
 
-    for (int eres_count = 15; eres_count < 16; eres_count++) {
-      for (int gain_count = 53; gain_count <54; gain_count++) {
+    for (int eres_count = 20; eres_count < 21; eres_count++) {
+      for (int gain_count = 38; gain_count <39; gain_count++) {
         std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/charge_valeur_fit[om]*0.9 << "   sup  ="  << 1/charge_valeur_fit[om]*1.1 << '\n';
         // if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > charge_valeur_fit[om]*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<charge_valeur_fit[om]*1.15)){
           gain = (gain_bin_min + gain_bin_width*(gain_count-1));
@@ -342,7 +358,6 @@ void Fit_Gain_Simu() {
           TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
           TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
           TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
-
 
           integrale_tot_Tl = mc0->Integral(0, 1024);
           integrale_tot_Bi = mc1->Integral(0, 1024);
@@ -359,6 +374,7 @@ void Fit_Gain_Simu() {
 
           roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab);
           logL = rootab[0];
+          Chi2 = rootab[4];
           param1 = rootab[1];
           param2 = rootab[2];
           param3 = rootab[3];
@@ -372,8 +388,6 @@ void Fit_Gain_Simu() {
           mc2->Scale(param3*spectre_om->Integral());
           double om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
           std::cout << "om flux K = " << om_flux_K << '\n';
-
-
 
 	        Result_tree.Fill();
 
@@ -389,20 +403,19 @@ void Fit_Gain_Simu() {
   Result_tree.Write();
   newfile->Close();
 }
-
 void distrib(string name) {
   TFile *eff_file = new TFile(Form("histo_fit/histo_%s.root", name.c_str()), "READ");
   std::ofstream outFile("Best_Khi2.txt");
-  int om =0;
-  double Chi2NDF = 0;
+  int om_number =0;
+  double Chi2 = 0;
   float gain = 0;
   float eres = 0;
   TTree* eff_tree = (TTree*)eff_file->Get("Result_tree");
   eff_tree->SetBranchStatus("*",0);
-  eff_tree->SetBranchStatus("om",1);
-  eff_tree->SetBranchAddress("om", &om);
-  eff_tree->SetBranchStatus("Chi2NDF",1);
-  eff_tree->SetBranchAddress("Chi2NDF", &Chi2NDF);
+  eff_tree->SetBranchStatus("om_number",1);
+  eff_tree->SetBranchAddress("om_number", &om_number);
+  eff_tree->SetBranchStatus("Chi2",1);
+  eff_tree->SetBranchAddress("Chi2", &Chi2);
   eff_tree->SetBranchStatus("gain",1);
   eff_tree->SetBranchAddress("gain", &gain);
   eff_tree->SetBranchStatus("eres",1);
@@ -417,9 +430,9 @@ void distrib(string name) {
       if (((j%13)!=0) && ((j%13)!=12)){
 	for (double i = 0; i < eff_tree->GetEntries(); i++) {
 	  eff_tree->GetEntry(i);
-	  if (om == j) {
-	    if (Chi2NDF < test) {
-	      test = Chi2NDF;
+	  if (om_number == j) {
+	    if (Chi2 < test) {
+	      test = Chi2;
 	      n_entry = i;
 	    }
 	  }
@@ -429,7 +442,7 @@ void distrib(string name) {
       test =10;
       if (((j%13)!=0) && ((j%13)!=12)){
 	eff_tree->GetEntry(n_entry);
-	outFile << om << "\t" << gain << "\t" << eres << endl;
+	outFile << om_number << "\t" << gain << "\t" << eres << endl;
       }
     }
     dist->Draw();
@@ -441,9 +454,9 @@ void distrib(string name) {
       if (((j%13)==0) || ((j%13)==12)){
 	for (double i = 0; i < eff_tree->GetEntries(); i++) {
 	  eff_tree->GetEntry(i);
-	  if (om == j) {
-	    if (Chi2NDF < test) {
-	      test = Chi2NDF;
+	  if (om_number == j) {
+	    if (Chi2 < test) {
+	      test = Chi2;
 	      n_entry = i;
 	    }
 	  }
@@ -454,7 +467,7 @@ void distrib(string name) {
       test = 10;
       if (((j%13)==0) || ((j%13)==12)){
 	eff_tree->GetEntry(n_entry);
-	outFile << om << "\t" << gain << "\t" << eres << endl;
+	outFile << om_number << "\t" << gain << "\t" << eres << endl;
       }
     }
     dist->Draw();
@@ -465,9 +478,9 @@ void distrib(string name) {
     for (int j = 520; j < 648; j++) {
       for (double i = 0; i < eff_tree->GetEntries(); i++) {
 	eff_tree->GetEntry(i);
-	if (om == j) {
-	  if (Chi2NDF < test) {
-	    test = Chi2NDF;
+	if (om_number == j) {
+	  if (Chi2 < test) {
+	    test = Chi2;
 	    n_entry = i;
 	  }
 	}
@@ -475,7 +488,7 @@ void distrib(string name) {
       dist->Fill(test);
       test =10;
       eff_tree->GetEntry(n_entry);
-      outFile << om << "\t" << gain << "\t" << eres << endl;
+      outFile << om_number << "\t" << gain << "\t" << eres << endl;
     }
     dist->Draw();
   }
@@ -485,9 +498,9 @@ void distrib(string name) {
     for (int j = 648; j < 712; j++) {
       for (double i = 0; i < eff_tree->GetEntries(); i++) {
 	eff_tree->GetEntry(i);
-	if (om == j) {
-	  if (Chi2NDF < test) {
-	    test = Chi2NDF;
+	if (om_number == j) {
+	  if (Chi2 < test) {
+	    test = Chi2;
 	    n_entry = i;
 	  }
 	}
@@ -495,7 +508,7 @@ void distrib(string name) {
       dist->Fill(test);
       test =10;
       eff_tree->GetEntry(n_entry);
-      outFile << om << "\t" << gain << "\t" << eres << endl;
+      outFile << om_number << "\t" << gain << "\t" << eres << endl;
     }
     dist->Draw();
   }
