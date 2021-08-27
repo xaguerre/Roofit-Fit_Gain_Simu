@@ -4,6 +4,8 @@
 #include "RooDataSet.h"
 #include "RooDataHist.h"
 #include "RooHistFunc.h"
+#include "RooFitResult.h"
+#include "RooHistPdf.h"
 #include "RooRealSumPdf.h"
 #include "RooParamHistFunc.h"
 #include "RooHistConstraint.h"
@@ -14,6 +16,25 @@
 #include <iostream>
 #include <memory>
 using namespace RooFit;
+#define _USE_MATH_DEFINES
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <TH1D.h>
+#include <TH2D.h>
+#include <TH3D.h>
+#include <TF1.h>
+#include <TStyle.h>
+#include "TKey.h"
+#include "TFile.h"
+#include "TTree.h"
+#include "TLine.h"
+#include "TROOT.h"
+#include <TText.h>
+#include <TLatex.h>
+#include <TRandom3.h>
+#include <TLegend.h>
+using namespace std;
 
 const int eres_n_bin = 53;
 const float eres_bin_min = 7;
@@ -97,6 +118,23 @@ TH3D* MC(int value, string name) {
   return MC;
 }
 
+TH3D* MC_chooser(int om, int comp){
+  TH3D* MC_chooser = NULL;
+  if (om <520 && om%13 != 12 && om%13 != 0){
+    MC_chooser = MC(comp, "MW8");
+  }
+  else if (om <520 && (om%13 == 12 || om%13 == 0)) {
+    MC_chooser = MC(comp, "MW5");
+  }
+  else if (om > 519 && om < 648) {
+    MC_chooser = MC(comp, "XW");
+  }
+  else if (om > 647) {
+    MC_chooser = MC(comp, "GV");
+  }
+  return MC_chooser;
+}
+
 double* om_gain_fit(int om)
 {
   gStyle->SetOptFit(1);
@@ -129,38 +167,38 @@ double* om_gain_fit(int om)
   f_ComptonEdgePoly->SetParNames("N_evt","Mean","Sigma","Nbg" );
 
   if ((om % 13) == 12 )        //om multiple de (13)-1
-    {
-      f_ComptonEdgePoly->SetParameters(120, 72367, 6893, 3.91e-5);
-      f_ComptonEdgePoly->SetRange(6000,100000);
-      f_ComptonEdgePoly->Draw("same");
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-      f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-      f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-    }
+  {
+    f_ComptonEdgePoly->SetParameters(120, 72367, 6893, 3.91e-5);
+    f_ComptonEdgePoly->SetRange(6000,100000);
+    f_ComptonEdgePoly->Draw("same");
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+    f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+    f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+  }
   else if ((om % 13) == 0)       //om multiple de 13
-    {
-      f_ComptonEdgePoly->SetParameters(112, 68168, 5604, 1.2e-05);
-      f_ComptonEdgePoly->SetRange(50000,100000);
-      f_ComptonEdgePoly->Draw("same");
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-      f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-      f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-1.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-    }
+  {
+    f_ComptonEdgePoly->SetParameters(112, 68168, 5604, 1.2e-05);
+    f_ComptonEdgePoly->SetRange(50000,100000);
+    f_ComptonEdgePoly->Draw("same");
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+    f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+    f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-1.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+5*f_ComptonEdgePoly->GetParameter(2));
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+  }
   else         //om normaux (8pouces)
-    {
-      f_ComptonEdgePoly->SetParameters(111, 60978, 3787, 4.19e-05);
-      f_ComptonEdgePoly->SetRange(55000,100000);
-      f_ComptonEdgePoly->Draw("same");
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-      f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+7.5*f_ComptonEdgePoly->GetParameter(2));
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-      f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-3.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+7.5*f_ComptonEdgePoly->GetParameter(2));
-      spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
-    }
+  {
+    f_ComptonEdgePoly->SetParameters(111, 60978, 3787, 4.19e-05);
+    f_ComptonEdgePoly->SetRange(55000,100000);
+    f_ComptonEdgePoly->Draw("same");
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+    f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-2.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+7.5*f_ComptonEdgePoly->GetParameter(2));
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+    f_ComptonEdgePoly->SetRange(f_ComptonEdgePoly->GetParameter(1)-3.5*f_ComptonEdgePoly->GetParameter(2),f_ComptonEdgePoly->GetParameter(1)+7.5*f_ComptonEdgePoly->GetParameter(2));
+    spectre_om->Fit(f_ComptonEdgePoly, "RQ0");
+  }
   chi = (f_ComptonEdgePoly->GetChisquare());
   std::cout << chi << '\n';
   ndf = (f_ComptonEdgePoly->GetNDF());
@@ -222,7 +260,7 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   RooArgList(RooTl,RooBi,RooK),
   false);
 
-  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(0), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-1), Minimizer("Minuit"));
+  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(-1), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-1), Minimizer("Minuit"));
   sum_simu.setStringAttribute("fitrange", nullptr);
   TCanvas* can = new TCanvas("can", "", 1500, 600);
   can->cd();
@@ -230,8 +268,6 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   // Plot data to enable automatic determination of model0 normalisation:
   sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
 
-
-  // std::cout << "messafe " << p_ph_Tl << '\n';
   spectre_data.plotOn(frame);
   // Plot data again to show it on top of model0 error bands:
   spectre_data.plotOn(frame, Name("spectre_hist"));
@@ -252,8 +288,6 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   double K_int = K_curve->average(start_x,65000);
   RooCurve * sum_curve = frame->getCurve("sum_curve");
   double int_data = sum_curve->average(start_x,65000);
-  // RooHist * spectre_hist = frame->getHist("spectre_hist");
-  // double int_data = spectre_hist->getFitRangeNEvt(start_x, 65000);
 
   frame->GetYaxis()->UnZoom();
   frame ->Draw();
@@ -270,10 +304,10 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   std::cout << "Bi  =" << rootab[2]<< '\n';
   std::cout << "K  =" << rootab[3]<< '\n';
   std::cout << "Tot  =" << rootab[3]+rootab[1]+rootab[2]<< '\n';
-
-  delete can;
-  delete frame;
-  delete result1;
+  //
+  // delete can;
+  // delete frame;
+  // delete result1;
   return rootab;
 }
 
@@ -294,16 +328,12 @@ double get_om_eff(string compo, int om) {
 void Fit_Gain_Simu() {
   TH1::SetDefaultSumw2();
 
-  double logL = 0;
-  double Chi2 = 0;
-  double param1 = 0;
-  double param2 = 0;
-  double param3 = 0;
-  float gain = 0;
-  float eres = 0;
+  double logL, Chi2, param1, param2, param3 = 0;
+  float gain, eres = 0;
   int om_number = 0;
-
-  double integrale_tot_Tl, integrale_droite_Tl, integrale_tot_Bi, integrale_droite_Bi, integrale_tot_K, integrale_droite_K;
+  double mean_erf, sigma_erf = 0;
+  double* tab = new double[7];
+  double om_flux_Tl, om_flux_Bi, om_flux_K, integrale_tot_Tl, integrale_droite_Tl, integrale_tot_Bi, integrale_droite_Bi, integrale_tot_K, integrale_droite_K = 0;
 
   TFile *newfile = new TFile("histo_fit/histo_roofit.root", "RECREATE");
   TTree Result_tree("Result_tree","");
@@ -315,6 +345,9 @@ void Fit_Gain_Simu() {
   Result_tree.Branch("gain", &gain);
   Result_tree.Branch("eres", &eres);
   Result_tree.Branch("om_number", &om_number);
+  Result_tree.Branch("om_flux_Tl", &om_flux_Tl);
+  Result_tree.Branch("om_flux_Bi", &om_flux_Bi);
+  Result_tree.Branch("om_flux_K", &om_flux_K);
 
   std::ifstream  charge("/home/aguerre/Bureau/Thèse/Fit_Gain_Simu/gain_data/Resultat_mean_energie_charge_total.txt");
   float charge_valeur_fit [712];
@@ -326,32 +359,48 @@ void Fit_Gain_Simu() {
   }
   double* rootab = new double[5];
 
-
-  TH3D* MC_Tl_208 = MC(1, "MW8");
-  TH3D* MC_Bi_214 = MC(2, "MW8");;
-  TH3D* MC_K_40 = MC(3, "MW8");;
   // TFile *histo = new TFile("Histo_simu_new/Histo_mystere.root", "READ");
   // histo->cd();
   // TH1D* MC = (TH1D*)histo->Get("MC");
 
-  for (int om = 222; om < 223; om++)
+  for (int om = 0; om < 13; om++)
   {
     int lim = 140;
-    // if (((om%13)==12) || ((om%13)==0))continue;
-    //if ((om%13)==12)continue;
-    //if ((om%13)==0)continue;
+    TH3D* MC_Tl_208 = MC_chooser(om, 1);
+    TH3D* MC_Bi_214 = MC_chooser(om, 2);
+    TH3D* MC_K_40 = MC_chooser(om, 3);
+
     om_number = om;
     TH1D* spectre_om = NULL;
     spectre_om = spectre_chooser(om);
+
+    if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 15000)){
+      delete spectre_om;
+      om++;
+      spectre_om = spectre_chooser(om);
+    }
+    if (charge_valeur_fit[om] != -1){
+      if (om < 648){
+        tab = om_gain_fit(om);
+        if (tab[0] == 0) {
+          mean_erf = charge_valeur_fit[om];
+          sigma_erf = 0;
+        }
+        else{
+          sigma_erf = 1/tab[1];
+          mean_erf = 1/tab[0];
+        }
+      }
+    }
 
     for (int bin =1; bin < lim; bin++) {
       spectre_om->SetBinContent(bin, 0);
     }
 
-    for (int eres_count = 20; eres_count < 21; eres_count++) {
-      for (int gain_count = 38; gain_count <39; gain_count++) {
+    for (int eres_count = 13; eres_count < 14; eres_count++) {
+      for (int gain_count = 0; gain_count <150; gain_count++) {
         std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/charge_valeur_fit[om]*0.9 << "   sup  ="  << 1/charge_valeur_fit[om]*1.1 << '\n';
-        // if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > charge_valeur_fit[om]*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<charge_valeur_fit[om]*1.15)){
+        if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*1.15)){
           gain = (gain_bin_min + gain_bin_width*(gain_count-1));
           eres = eres_bin_min + eres_bin_width*(eres_count-1);
           std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
@@ -380,29 +429,33 @@ void Fit_Gain_Simu() {
           param3 = rootab[3];
 
           mc0->Scale(param1*spectre_om->Integral());
-          double om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/655;
+          om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/655;
           std::cout << "om flux Tl = " << om_flux_Tl << '\n';
           mc1->Scale(param2*spectre_om->Integral());
-          double om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/655;
+          om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/655;
           std::cout << "om flux Bi = " << om_flux_Bi << '\n';
           mc2->Scale(param3*spectre_om->Integral());
-          double om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
+          om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
           std::cout << "om flux K = " << om_flux_K << '\n';
 
-	        Result_tree.Fill();
+          Result_tree.Fill();
 
           delete mc0;
           delete mc1;
           delete mc2;
-        // }
+        }
       }
     }
     delete spectre_om;
+    delete MC_Tl_208;
+    delete MC_Bi_214;
+    delete MC_K_40;
   }
   newfile->cd();
   Result_tree.Write();
   newfile->Close();
 }
+
 void distrib(string name) {
   TFile *eff_file = new TFile(Form("histo_fit/histo_%s.root", name.c_str()), "READ");
   std::ofstream outFile("Best_Khi2.txt");
@@ -428,21 +481,21 @@ void distrib(string name) {
     dist->GetXaxis()->SetTitle("Khi2");
     for (int j = 1; j < 520; j++) {
       if (((j%13)!=0) && ((j%13)!=12)){
-	for (double i = 0; i < eff_tree->GetEntries(); i++) {
-	  eff_tree->GetEntry(i);
-	  if (om_number == j) {
-	    if (Chi2 < test) {
-	      test = Chi2;
-	      n_entry = i;
-	    }
-	  }
-	}
+        for (double i = 0; i < eff_tree->GetEntries(); i++) {
+          eff_tree->GetEntry(i);
+          if (om_number == j) {
+            if (Chi2 < test) {
+              test = Chi2;
+              n_entry = i;
+            }
+          }
+        }
       }
       dist->Fill(test);
       test =10;
       if (((j%13)!=0) && ((j%13)!=12)){
-	eff_tree->GetEntry(n_entry);
-	outFile << om_number << "\t" << gain << "\t" << eres << endl;
+        eff_tree->GetEntry(n_entry);
+        outFile << om_number << "\t" << gain << "\t" << eres << endl;
       }
     }
     dist->Draw();
@@ -452,22 +505,22 @@ void distrib(string name) {
     dist->GetXaxis()->SetTitle("Khi2");
     for (int j = 0; j < 520; j++) {
       if (((j%13)==0) || ((j%13)==12)){
-	for (double i = 0; i < eff_tree->GetEntries(); i++) {
-	  eff_tree->GetEntry(i);
-	  if (om_number == j) {
-	    if (Chi2 < test) {
-	      test = Chi2;
-	      n_entry = i;
-	    }
-	  }
-	}
+        for (double i = 0; i < eff_tree->GetEntries(); i++) {
+          eff_tree->GetEntry(i);
+          if (om_number == j) {
+            if (Chi2 < test) {
+              test = Chi2;
+              n_entry = i;
+            }
+          }
+        }
       }
       dist->Fill(test);
       cout << j << endl;
       test = 10;
       if (((j%13)==0) || ((j%13)==12)){
-	eff_tree->GetEntry(n_entry);
-	outFile << om_number << "\t" << gain << "\t" << eres << endl;
+        eff_tree->GetEntry(n_entry);
+        outFile << om_number << "\t" << gain << "\t" << eres << endl;
       }
     }
     dist->Draw();
@@ -477,13 +530,13 @@ void distrib(string name) {
     dist->GetXaxis()->SetTitle("Khi2");
     for (int j = 520; j < 648; j++) {
       for (double i = 0; i < eff_tree->GetEntries(); i++) {
-	eff_tree->GetEntry(i);
-	if (om_number == j) {
-	  if (Chi2 < test) {
-	    test = Chi2;
-	    n_entry = i;
-	  }
-	}
+        eff_tree->GetEntry(i);
+        if (om_number == j) {
+          if (Chi2 < test) {
+            test = Chi2;
+            n_entry = i;
+          }
+        }
       }
       dist->Fill(test);
       test =10;
@@ -497,13 +550,13 @@ void distrib(string name) {
     dist->GetXaxis()->SetTitle("Khi2");
     for (int j = 648; j < 712; j++) {
       for (double i = 0; i < eff_tree->GetEntries(); i++) {
-	eff_tree->GetEntry(i);
-	if (om_number == j) {
-	  if (Chi2 < test) {
-	    test = Chi2;
-	    n_entry = i;
-	  }
-	}
+        eff_tree->GetEntry(i);
+        if (om_number == j) {
+          if (Chi2 < test) {
+            test = Chi2;
+            n_entry = i;
+          }
+        }
       }
       dist->Fill(test);
       test =10;
@@ -647,15 +700,15 @@ void eff_om(string name) {
     new_tree.Fill();
   }
 
-file->Close();
+  file->Close();
 
-newfile->cd();
+  newfile->cd();
 
-new_tree.Write();
-eff_tot_histo.Write();
-eff_cut_histo.Write();
+  new_tree.Write();
+  eff_tot_histo.Write();
+  eff_cut_histo.Write();
 
-newfile->Close();
+  newfile->Close();
 
 }
 
