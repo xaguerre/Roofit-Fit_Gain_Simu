@@ -135,6 +135,24 @@ TH3D* MC_chooser(int om, int comp){
   return MC_chooser;
 }
 
+int eres_chooser(int om){
+  int eres_chooser = 0;
+  if (om <520 && om%13 != 12 && om%13 != 0){
+    eres_chooser = 8;
+  }
+  else if (om <520 && (om%13 == 12 || om%13 == 0)) {
+    eres_chooser = 9;
+  }
+  else if (om > 519 && om < 648) {
+    eres_chooser = 12;
+  }
+  else if (om > 647) {
+    eres_chooser = 15;
+  }
+  return eres_chooser;
+}
+
+
 double* om_gain_fit(int om)
 {
   gStyle->SetOptFit(1);
@@ -349,7 +367,7 @@ void Fit_Gain_Simu() {
   Result_tree.Branch("om_flux_Bi", &om_flux_Bi);
   Result_tree.Branch("om_flux_K", &om_flux_K);
 
-  std::ifstream  charge("/home/aguerre/Bureau/Thèse/Fit_Gain_Simu/gain_data/Resultat_mean_energie_charge_total.txt");
+  std::ifstream  charge("gain_data/Resultat_mean_energie_charge_total.txt");
   float charge_valeur_fit [712];
   memset(charge_valeur_fit, -1, 712*sizeof(float));
   int charge_om_num;
@@ -374,7 +392,7 @@ void Fit_Gain_Simu() {
     TH1D* spectre_om = NULL;
     spectre_om = spectre_chooser(om);
 
-    if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 15000)){
+    if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
       delete spectre_om;
       om++;
       spectre_om = spectre_chooser(om);
@@ -396,56 +414,56 @@ void Fit_Gain_Simu() {
     for (int bin =1; bin < lim; bin++) {
       spectre_om->SetBinContent(bin, 0);
     }
+    int eres = eres_chooser(om);
+    int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
+    std::cout << "eres_count = " << eres_count << '\n';
+    for (int gain_count = 0; gain_count <150; gain_count++) {
+      std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/charge_valeur_fit[om]*0.9 << "   sup  ="  << 1/charge_valeur_fit[om]*1.1 << '\n';
+      if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*1.15)){
+        gain = (gain_bin_min + gain_bin_width*(gain_count-1));
+        std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
+        TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
+        TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+        TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
 
-    for (int eres_count = 13; eres_count < 14; eres_count++) {
-      for (int gain_count = 0; gain_count <150; gain_count++) {
-        std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/charge_valeur_fit[om]*0.9 << "   sup  ="  << 1/charge_valeur_fit[om]*1.1 << '\n';
-        if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*1.15)){
-          gain = (gain_bin_min + gain_bin_width*(gain_count-1));
-          eres = eres_bin_min + eres_bin_width*(eres_count-1);
-          std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
-          TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
-          TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
-          TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+        integrale_tot_Tl = mc0->Integral(0, 1024);
+        integrale_tot_Bi = mc1->Integral(0, 1024);
+        integrale_tot_K = mc2->Integral(0, 1024);
 
-          integrale_tot_Tl = mc0->Integral(0, 1024);
-          integrale_tot_Bi = mc1->Integral(0, 1024);
-          integrale_tot_K = mc2->Integral(0, 1024);
-
-          for (size_t i = 0; i < lim; i++) {
-            mc0->SetBinContent(i, 0);
-            mc1->SetBinContent(i, 0);
-            mc2->SetBinContent(i, 0);
-          }
-          integrale_droite_Tl = mc0->Integral(lim+1, 1024);
-          integrale_droite_Bi = mc1->Integral(lim+1, 1024);
-          integrale_droite_K = mc2->Integral(lim+1, 1024);
-
-          roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab);
-          logL = rootab[0];
-          Chi2 = rootab[4];
-          param1 = rootab[1];
-          param2 = rootab[2];
-          param3 = rootab[3];
-
-          mc0->Scale(param1*spectre_om->Integral());
-          om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/655;
-          std::cout << "om flux Tl = " << om_flux_Tl << '\n';
-          mc1->Scale(param2*spectre_om->Integral());
-          om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/655;
-          std::cout << "om flux Bi = " << om_flux_Bi << '\n';
-          mc2->Scale(param3*spectre_om->Integral());
-          om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
-          std::cout << "om flux K = " << om_flux_K << '\n';
-
-          Result_tree.Fill();
-
-          delete mc0;
-          delete mc1;
-          delete mc2;
+        for (size_t i = 0; i < lim; i++) {
+          mc0->SetBinContent(i, 0);
+          mc1->SetBinContent(i, 0);
+          mc2->SetBinContent(i, 0);
         }
+        integrale_droite_Tl = mc0->Integral(lim+1, 1024);
+        integrale_droite_Bi = mc1->Integral(lim+1, 1024);
+        integrale_droite_K = mc2->Integral(lim+1, 1024);
+
+        roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab);
+        logL = rootab[0];
+        Chi2 = rootab[4];
+        param1 = rootab[1];
+        param2 = rootab[2];
+        param3 = rootab[3];
+
+        mc0->Scale(param1*spectre_om->Integral());
+        om_flux_Tl = mc0->Integral()/1800*get_om_eff("Tl_208", om)/655;
+        std::cout << "om flux Tl = " << om_flux_Tl << '\n';
+        mc1->Scale(param2*spectre_om->Integral());
+        om_flux_Bi = mc1->Integral()/1800*get_om_eff("Bi_214", om)/655;
+        std::cout << "om flux Bi = " << om_flux_Bi << '\n';
+        mc2->Scale(param3*spectre_om->Integral());
+        om_flux_K = mc2->Integral()/1800*get_om_eff("K_40", om)/655;
+        std::cout << "om flux K = " << om_flux_K << '\n';
+
+        Result_tree.Fill();
+
+        delete mc0;
+        delete mc1;
+        delete mc2;
       }
     }
+
     delete spectre_om;
     delete MC_Tl_208;
     delete MC_Bi_214;
@@ -477,7 +495,7 @@ void distrib(string name) {
 
   double test = 10;
   if (name.compare("MW8") == 0){
-    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM MW 8p",100, 0, 2);
+    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM MW 8p",100, 0, 11);
     dist->GetXaxis()->SetTitle("Khi2");
     for (int j = 1; j < 520; j++) {
       if (((j%13)!=0) && ((j%13)!=12)){
@@ -492,7 +510,7 @@ void distrib(string name) {
         }
       }
       dist->Fill(test);
-      test =10;
+      test =1000;
       if (((j%13)!=0) && ((j%13)!=12)){
         eff_tree->GetEntry(n_entry);
         outFile << om_number << "\t" << gain << "\t" << eres << endl;
