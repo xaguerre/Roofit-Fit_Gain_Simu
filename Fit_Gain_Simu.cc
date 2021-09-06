@@ -278,9 +278,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   RooArgList(RooTl,RooBi,RooK),
   false);
 
-  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(-1), SumW2Error(true), Range(start_x,65000), Save(), IntegrateBins(-1), Minimizer("Minuit"));
+  RooFitResult* result1 = sum_simu.fitTo(spectre_data, PrintLevel(-1), SumW2Error(true), Range(start_x,80000), Save(), IntegrateBins(-1), Minimizer("Minuit"));
   sum_simu.setStringAttribute("fitrange", nullptr);
-  TCanvas* can = new TCanvas("can", "", 1500, 600);
+  TCanvas* can = new TCanvas;
   can->cd();
   auto frame = x.frame(Title("Fit gain simu"));
   // Plot data to enable automatic determination of model0 normalisation:
@@ -294,9 +294,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
 
   // Plot model components
   sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen), Name("Tl_curve"));
-  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kAzure), Name("Bi_curve"));
-  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlack), Name("K_curve"));
-  sum_simu.paramOn(frame);
+  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kYellow), Name("Bi_curve"));
+  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlue), Name("K_curve"));
+  // sum_simu.paramOn(frame);
 
   RooCurve * Tl_curve = frame->getCurve("Tl_curve");
   double Tl_int = Tl_curve->average(start_x,65000);
@@ -323,9 +323,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   std::cout << "K  =" << rootab[3]<< '\n';
   std::cout << "Tot  =" << rootab[3]+rootab[1]+rootab[2]<< '\n';
   //
-  // delete can;
-  // delete frame;
-  // delete result1;
+  delete can;
+  delete frame;
+  delete result1;
   return rootab;
 }
 
@@ -381,7 +381,10 @@ void Fit_Gain_Simu() {
   // histo->cd();
   // TH1D* MC = (TH1D*)histo->Get("MC");
 
-  for (int om = 0; om < 13; om++)
+  float min = 0.85;
+  float max = 1.15;
+
+  for (int om = 648; om < 712; om++)
   {
     int lim = 140;
     TH3D* MC_Tl_208 = MC_chooser(om, 1);
@@ -392,13 +395,13 @@ void Fit_Gain_Simu() {
     TH1D* spectre_om = NULL;
     spectre_om = spectre_chooser(om);
 
-    if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
-      delete spectre_om;
-      om++;
-      spectre_om = spectre_chooser(om);
-    }
-    if (charge_valeur_fit[om] != -1){
-      if (om < 648){
+    if (om < 648) {
+      if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
+        delete spectre_om;
+        om++;
+        spectre_om = spectre_chooser(om);
+      }
+      if (charge_valeur_fit[om] != -1){
         tab = om_gain_fit(om);
         if (tab[0] == 0) {
           mean_erf = charge_valeur_fit[om];
@@ -410,6 +413,11 @@ void Fit_Gain_Simu() {
         }
       }
     }
+    else{
+      mean_erf = 1.0/23000;
+      min = 0.55;
+      max = 1.2;
+    }
 
     for (int bin =1; bin < lim; bin++) {
       spectre_om->SetBinContent(bin, 0);
@@ -418,8 +426,8 @@ void Fit_Gain_Simu() {
     int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
     std::cout << "eres_count = " << eres_count << '\n';
     for (int gain_count = 0; gain_count <150; gain_count++) {
-      std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/charge_valeur_fit[om]*0.9 << "   sup  ="  << 1/charge_valeur_fit[om]*1.1 << '\n';
-      if ((1/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*0.85) && (1/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*1.15)){
+      std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << mean_erf*min << "   sup  ="  << mean_erf*max << '\n';
+      if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
         gain = (gain_bin_min + gain_bin_width*(gain_count-1));
         std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
         TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
@@ -476,7 +484,7 @@ void Fit_Gain_Simu() {
 
 void distrib(string name) {
   TFile *eff_file = new TFile(Form("histo_fit/histo_%s.root", name.c_str()), "READ");
-  std::ofstream outFile("Best_Khi2.txt");
+  // std::ofstream outFile("Best_Khi2.txt");
   int om_number =0;
   double Chi2 = 0;
   float gain = 0;
@@ -513,7 +521,7 @@ void distrib(string name) {
       test =1000;
       if (((j%13)!=0) && ((j%13)!=12)){
         eff_tree->GetEntry(n_entry);
-        outFile << om_number << "\t" << gain << "\t" << eres << endl;
+        // outFile << om_number << "\t" << gain << "\t" << eres << endl;
       }
     }
     dist->Draw();
@@ -538,7 +546,7 @@ void distrib(string name) {
       test = 10;
       if (((j%13)==0) || ((j%13)==12)){
         eff_tree->GetEntry(n_entry);
-        outFile << om_number << "\t" << gain << "\t" << eres << endl;
+        // outFile << om_number << "\t" << gain << "\t" << eres << endl;
       }
     }
     dist->Draw();
@@ -559,12 +567,12 @@ void distrib(string name) {
       dist->Fill(test);
       test =10;
       eff_tree->GetEntry(n_entry);
-      outFile << om_number << "\t" << gain << "\t" << eres << endl;
+      // outFile << om_number << "\t" << gain << "\t" << eres << endl;
     }
     dist->Draw();
   }
   else if (name.compare("GV") == 0){
-    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM GV",100, 0, 11);
+    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM GV",100, 0, 2);
     dist->GetXaxis()->SetTitle("Khi2");
     for (int j = 648; j < 712; j++) {
       for (double i = 0; i < eff_tree->GetEntries(); i++) {
@@ -579,10 +587,31 @@ void distrib(string name) {
       dist->Fill(test);
       test =10;
       eff_tree->GetEntry(n_entry);
-      outFile << om_number << "\t" << gain << "\t" << eres << endl;
+      // outFile << om_number << "\t" << gain << "\t" << eres << endl;
     }
     dist->Draw();
   }
+  TCanvas* can = new TCanvas("can", "", 1500, 600);
+  TH1D* dist_tot = new TH1D ("distribution Chi2 tot","distribution Chi2", 100, 0, 11);
+  dist_tot->GetXaxis()->SetTitle("Khi2");
+  for (int j = 1; j < 712; j++) {
+      for (double i = 0; i < eff_tree->GetEntries(); i++) {
+        eff_tree->GetEntry(i);
+        if (om_number == j) {
+          if (Chi2 < test) {
+            test = Chi2;
+            n_entry = i;
+          }
+        }
+    }
+    dist_tot->Fill(test);
+    test =1000;
+    if (((j%13)!=0) && ((j%13)!=12)){
+      eff_tree->GetEntry(n_entry);
+      // outFile << om_number << "\t" << gain << "\t" << eres << endl;
+    }
+  }
+  dist_tot->Draw();
 }
 
 void histo_mystere(){
