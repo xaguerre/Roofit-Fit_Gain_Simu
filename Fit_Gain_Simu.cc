@@ -384,7 +384,7 @@ void Fit_Gain_Simu() {
   float min = 0.85;
   float max = 1.15;
 
-  for (int om = 648; om < 712; om++)
+  for (int om = 0; om < 712; om++)
   {
     int lim = 140;
     TH3D* MC_Tl_208 = MC_chooser(om, 1);
@@ -489,6 +489,7 @@ void distrib(string name) {
   double Chi2 = 0;
   float gain = 0;
   float eres = 0;
+  double om_flux_K, om_flux_Bi, om_flux_Tl, param1, param2 = 0;
   TTree* eff_tree = (TTree*)eff_file->Get("Result_tree");
   eff_tree->SetBranchStatus("*",0);
   eff_tree->SetBranchStatus("om_number",1);
@@ -499,119 +500,151 @@ void distrib(string name) {
   eff_tree->SetBranchAddress("gain", &gain);
   eff_tree->SetBranchStatus("eres",1);
   eff_tree->SetBranchAddress("eres", &eres);
-  double n_entry = 0;
-
+  eff_tree->SetBranchStatus("om_flux_Tl",1);
+  eff_tree->SetBranchAddress("om_flux_Tl", &om_flux_Tl);
+  eff_tree->SetBranchStatus("om_flux_Bi",1);
+  eff_tree->SetBranchAddress("om_flux_Bi", &om_flux_Bi);
+  eff_tree->SetBranchStatus("om_flux_K",1);
+  eff_tree->SetBranchAddress("om_flux_K", &om_flux_K);
+  eff_tree->SetBranchStatus("param1",1);
+  eff_tree->SetBranchAddress("param1", &param1);
+  eff_tree->SetBranchStatus("param2",1);
+  eff_tree->SetBranchAddress("param2", &param2);
+  double n_entry,Gain = 0;
+  double Tl, Bi, K, par1, par2 = 10000;
+  int om = 0;
   double test = 10;
-  if (name.compare("MW8") == 0){
-    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM MW 8p",100, 0, 11);
-    dist->GetXaxis()->SetTitle("Khi2");
-    for (int j = 1; j < 520; j++) {
-      if (((j%13)!=0) && ((j%13)!=12)){
-        for (double i = 0; i < eff_tree->GetEntries(); i++) {
-          eff_tree->GetEntry(i);
-          if (om_number == j) {
-            if (Chi2 < test) {
-              test = Chi2;
-              n_entry = i;
-            }
-          }
+  TFile *newfile = new TFile(Form("histo_fit/histo_%s_distrib.root", name.c_str()), "RECREATE");
+  TTree Result_tree("Result_tree","");
+  Result_tree.Branch("om_number", &om);
+  Result_tree.Branch("Chi2", &test);
+  Result_tree.Branch("gain", &Gain);
+  Result_tree.Branch("om_flux_Tl", &Tl);
+  Result_tree.Branch("om_flux_Bi", &Bi);
+  Result_tree.Branch("om_flux_K", &K);
+  Result_tree.Branch("param1", &par1);
+  Result_tree.Branch("param2", &par2);
+
+  // if (name.compare("MW8") == 0){
+  //   TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM MW 8p",100, 0, 11);
+  //   dist->GetXaxis()->SetTitle("Khi2");
+  //   for (int j = 1; j < 520; j++) {
+  //     if (((j%13)!=0) && ((j%13)!=12)){
+  //       for (double i = 0; i < eff_tree->GetEntries(); i++) {
+  //         eff_tree->GetEntry(i);
+  //         if (om_number == j) {
+  //           if (Chi2 < test) {
+  //             test = Chi2;
+  //             n_entry = i;
+  //           }
+  //         }
+  //       }
+  //     }
+  //     dist->Fill(test);
+  //     test =1000;
+  //     if (((j%13)!=0) && ((j%13)!=12)){
+  //       eff_tree->GetEntry(n_entry);
+  //       // outFile << om_number << "\t" << gain << "\t" << eres << endl;
+  //     }
+  //   }
+  //   dist->Draw();
+  // }
+  // else if (name.compare("MW5") == 0){
+  //   TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM 5p MW",100, 0, 2);
+  //   dist->GetXaxis()->SetTitle("Khi2");
+  //   for (int j = 0; j < 520; j++) {
+  //     if (((j%13)==0) || ((j%13)==12)){
+  //       for (double i = 0; i < eff_tree->GetEntries(); i++) {
+  //         eff_tree->GetEntry(i);
+  //         if (om_number == j) {
+  //           if (Chi2 < test) {
+  //             test = Chi2;
+  //             n_entry = i;
+  //           }
+  //         }
+  //       }
+  //     }
+  //     dist->Fill(test);
+  //     cout << j << endl;
+  //     test = 10;
+  //     if (((j%13)==0) || ((j%13)==12)){
+  //       eff_tree->GetEntry(n_entry);
+  //       // outFile << om_number << "\t" << gain << "\t" << eres << endl;
+  //     }
+  //   }
+  //   dist->Draw();
+  // }
+  // else if (name.compare("XW") == 0){
+  //   TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM XW",100, 0, 2);
+  //   dist->GetXaxis()->SetTitle("Khi2");
+  //   for (int j = 520; j < 648; j++) {
+  //     for (double i = 0; i < eff_tree->GetEntries(); i++) {
+  //       eff_tree->GetEntry(i);
+  //       if (om_number == j) {
+  //         if (Chi2 < test) {
+  //           test = Chi2;
+  //           n_entry = i;
+  //         }
+  //       }
+  //     }
+  //     dist->Fill(test);
+  //     test =10;
+  //     eff_tree->GetEntry(n_entry);
+  //     // outFile << om_number << "\t" << gain << "\t" << eres << endl;
+  //   }
+  //   dist->Draw();
+  // }
+  // else if (name.compare("GV") == 0){
+  //   TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM GV",100, 0, 2);
+  //   dist->GetXaxis()->SetTitle("Khi2");
+  //   for (int j = 648; j < 712; j++) {
+  //     for (double i = 0; i < eff_tree->GetEntries(); i++) {
+  //       eff_tree->GetEntry(i);
+  //       if (om_number == j) {
+  //         if (Chi2 < test) {
+  //           test = Chi2;
+  //           n_entry = i;
+  //         }
+  //       }
+  //     }
+  //     dist->Fill(test);
+  //     test =10;
+  //     eff_tree->GetEntry(n_entry);
+  //     // outFile << om_number << "\t" << gain << "\t" << eres << endl;
+  //   }
+  //   dist->Draw();
+  // }
+
+
+  for (int j = 0; j < 712; j++) {
+    for (double i = 0; i < eff_tree->GetEntries(); i++) {
+      eff_tree->GetEntry(i);
+      if (om_number == j) {
+
+        if (Chi2 < test) {
+          test = Chi2;
+          Gain = gain;
+          Tl = om_flux_Tl;
+          Bi = om_flux_Bi;
+          K = om_flux_K;
+          par1 = param1;
+          par2 = param2;
+          n_entry = i;
         }
       }
-      dist->Fill(test);
-      test =1000;
-      if (((j%13)!=0) && ((j%13)!=12)){
-        eff_tree->GetEntry(n_entry);
-        // outFile << om_number << "\t" << gain << "\t" << eres << endl;
-      }
     }
-    dist->Draw();
+    if (om+1 == j ) {
+            om = j;
+      Result_tree.Fill();
+    }
+    Tl, Bi, K = 1000;
+    par1, par2 = 1000;
+    test = 1000;
   }
-  else if (name.compare("MW5") == 0){
-    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM 5p MW",100, 0, 2);
-    dist->GetXaxis()->SetTitle("Khi2");
-    for (int j = 0; j < 520; j++) {
-      if (((j%13)==0) || ((j%13)==12)){
-        for (double i = 0; i < eff_tree->GetEntries(); i++) {
-          eff_tree->GetEntry(i);
-          if (om_number == j) {
-            if (Chi2 < test) {
-              test = Chi2;
-              n_entry = i;
-            }
-          }
-        }
-      }
-      dist->Fill(test);
-      cout << j << endl;
-      test = 10;
-      if (((j%13)==0) || ((j%13)==12)){
-        eff_tree->GetEntry(n_entry);
-        // outFile << om_number << "\t" << gain << "\t" << eres << endl;
-      }
-    }
-    dist->Draw();
-  }
-  else if (name.compare("XW") == 0){
-    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM XW",100, 0, 2);
-    dist->GetXaxis()->SetTitle("Khi2");
-    for (int j = 520; j < 648; j++) {
-      for (double i = 0; i < eff_tree->GetEntries(); i++) {
-        eff_tree->GetEntry(i);
-        if (om_number == j) {
-          if (Chi2 < test) {
-            test = Chi2;
-            n_entry = i;
-          }
-        }
-      }
-      dist->Fill(test);
-      test =10;
-      eff_tree->GetEntry(n_entry);
-      // outFile << om_number << "\t" << gain << "\t" << eres << endl;
-    }
-    dist->Draw();
-  }
-  else if (name.compare("GV") == 0){
-    TH1D* dist = new TH1D ("distribution Chi2","distribution Chi2 OM GV",100, 0, 2);
-    dist->GetXaxis()->SetTitle("Khi2");
-    for (int j = 648; j < 712; j++) {
-      for (double i = 0; i < eff_tree->GetEntries(); i++) {
-        eff_tree->GetEntry(i);
-        if (om_number == j) {
-          if (Chi2 < test) {
-            test = Chi2;
-            n_entry = i;
-          }
-        }
-      }
-      dist->Fill(test);
-      test =10;
-      eff_tree->GetEntry(n_entry);
-      // outFile << om_number << "\t" << gain << "\t" << eres << endl;
-    }
-    dist->Draw();
-  }
-  TCanvas* can = new TCanvas("can", "", 1500, 600);
-  TH1D* dist_tot = new TH1D ("distribution Chi2 tot","distribution Chi2", 100, 0, 11);
-  dist_tot->GetXaxis()->SetTitle("Khi2");
-  for (int j = 1; j < 712; j++) {
-      for (double i = 0; i < eff_tree->GetEntries(); i++) {
-        eff_tree->GetEntry(i);
-        if (om_number == j) {
-          if (Chi2 < test) {
-            test = Chi2;
-            n_entry = i;
-          }
-        }
-    }
-    dist_tot->Fill(test);
-    test =1000;
-    if (((j%13)!=0) && ((j%13)!=12)){
-      eff_tree->GetEntry(n_entry);
-      // outFile << om_number << "\t" << gain << "\t" << eres << endl;
-    }
-  }
-  dist_tot->Draw();
+
+  newfile->cd();
+  Result_tree.Write();
+  newfile->Close();
 }
 
 void histo_mystere(){
