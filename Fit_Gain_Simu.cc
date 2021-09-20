@@ -289,9 +289,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   RooParamHistFunc p_ph_Bi("p_ph_Bi","p_ph_Bi",Bi);
   RooParamHistFunc p_ph_K("p_ph_K","p_ph_K",K);
 
-  RooRealVar RooTl("RooTl", "Tl", 0.2, 0, 1);
-  RooRealVar RooBi("RooBi", "Bi", 0.5, 0, 1);
-  RooRealVar RooK("RooK", "K", 0.3, 0, 0.4);
+  RooRealVar RooTl("RooTl", "Tl", 0.2, 0.1, 0.5);
+  RooRealVar RooBi("RooBi", "Bi", 0.5, 0.3, 0.70);
+  RooRealVar RooK("RooK", "K", 0.3, 0.2, 0.4);
 
   RooRealSumPdf sum_simu("sum_simu", "sum_simu",
   RooArgList(p_ph_Tl, p_ph_Bi, p_ph_K),
@@ -335,16 +335,16 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   frame->GetXaxis()->SetTitle("charge (u.a)");
   frame ->Draw();
   can->SetLogy();
-  TLatex* l = new TLatex();
-  l->SetTextFont(40);
-  l->DrawLatex(60000, 5000, Form("Khi2/NDF = %.3f",rootab[4]));
-  l->DrawLatex(60000, 3000, Form("loglikelihood = %f",rootab[0]));
-  TLine* xline = new TLine(58000, 2500, 100000, 2500);
-  xline->SetLineWidth(2);
-  xline->Draw();
-  TLine* yline = new TLine(58000, 2500, 58000, 9500);
-  yline->SetLineWidth(2);
-  yline->Draw();
+  // TLatex* l = new TLatex();
+  // l->SetTextFont(40);
+  // l->DrawLatex(60000, 5000, Form("Khi2/NDF = %.3f",rootab[4]));
+  // l->DrawLatex(60000, 3000, Form("loglikelihood = %f",rootab[0]));
+  // TLine* xline = new TLine(58000, 2500, 100000, 2500);
+  // xline->SetLineWidth(2);
+  // xline->Draw();
+  // TLine* yline = new TLine(58000, 2500, 58000, 9500);
+  // yline->SetLineWidth(2);
+  // yline->Draw();
 
   can->SaveAs(Form("Best_fit/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, eres, gain, bin));
   // result1->Print("v");
@@ -381,11 +381,10 @@ void Fit_Gain_Simu() {
   double logL, Chi2, param1, param2, param3 = 0;
   float gain, eres = 0;
   int om_number = 0;
-  double mean_erf, sigma_erf = 0;
+  double mean_erf = 0;
   double* tab = new double[7];
-  double om_flux_Tl, om_flux_Bi, om_flux_K, integrale_tot_Tl, integrale_droite_Tl, integrale_tot_Bi, integrale_droite_Bi, integrale_tot_K, integrale_droite_K = 0;
-
-int lim =0;
+  double om_flux_Tl, om_flux_Bi, om_flux_K;
+  int lim =0;
 
   TFile *newfile = new TFile("histo_fit/histo_roofit.root", "RECREATE");
   TTree Result_tree("Result_tree","");
@@ -420,9 +419,9 @@ int lim =0;
   float min = 0.85;
   float max = 1.15;
 
-  for (int om = 1; om < 2; om = om +1)
+  for (int om = 20; om < 23; om = om +1)
   {
-    for (lim = 115; lim < 116; lim =lim+5) {
+    for (lim = 120; lim < 121; lim =lim+5) {
       TH3D* MC_Tl_208 = MC_chooser(om, 0);
       TH3D* MC_Bi_214 = MC_chooser(om, 1);
       TH3D* MC_K_40 = MC_chooser(om, 2);
@@ -441,10 +440,8 @@ int lim =0;
           tab = om_gain_fit(om);
           if (tab[0] == 0) {
             mean_erf = charge_valeur_fit[om];
-            sigma_erf = 0;
           }
           else{
-            sigma_erf = 1/tab[1];
             mean_erf = 1/tab[0];
           }
         }
@@ -461,7 +458,7 @@ int lim =0;
       int eres = eres_chooser(om);
       int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
       for (int gain_count = 0; gain_count <150; gain_count++) {
-        std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << mean_erf*min << "   sup  ="  << mean_erf*max << '\n';
+        std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
         if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
 
           gain = (gain_bin_min + gain_bin_width*(gain_count-1));
@@ -470,18 +467,11 @@ int lim =0;
           TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
           TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
 
-          integrale_tot_Tl = mc0->Integral(0, 1024);
-          integrale_tot_Bi = mc1->Integral(0, 1024);
-          integrale_tot_K = mc2->Integral(0, 1024);
-
-          for (size_t i = 0; i < lim; i++) {
+          for (int i = 0; i < lim; i++) {
             mc0->SetBinContent(i, 0);
             mc1->SetBinContent(i, 0);
             mc2->SetBinContent(i, 0);
           }
-          integrale_droite_Tl = mc0->Integral(lim+1, 1024);
-          integrale_droite_Bi = mc1->Integral(lim+1, 1024);
-          integrale_droite_K = mc2->Integral(lim+1, 1024);
 
           roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, lim);
           logL = rootab[0];
@@ -527,7 +517,11 @@ void distrib(string name) {
   double Chi2 = 0;
   float gain = 0;
   float eres = 0;
-  double om_flux_K, om_flux_Bi, om_flux_Tl, param1, param2 = 0;
+  double om_flux_K = 0;
+  double om_flux_Bi = 0;
+  double om_flux_Tl = 0;
+  double param1 = 0;
+  double param2 = 0;
   TTree* eff_tree = (TTree*)eff_file->Get("Result_tree");
   eff_tree->SetBranchStatus("*",0);
   eff_tree->SetBranchStatus("om_number",1);
@@ -548,8 +542,12 @@ void distrib(string name) {
   eff_tree->SetBranchAddress("param1", &param1);
   eff_tree->SetBranchStatus("param2",1);
   eff_tree->SetBranchAddress("param2", &param2);
-  double n_entry,Gain = 0;
-  double Tl, Bi, K, par1, par2 = 10000;
+  double Gain = 0;
+  double Tl = 10000;
+  double Bi = 10000;
+  double K = 10000;
+  double par1 = 10000;
+  double par2 = 10000;
   int om = 0;
   double test = 10;
   TFile *newfile = new TFile(Form("histo_fit/histo_%s_distrib.root", name.c_str()), "RECREATE");
@@ -576,7 +574,6 @@ void distrib(string name) {
           K = om_flux_K;
           par1 = param1;
           par2 = param2;
-          n_entry = i;
         }
       }
     }
@@ -584,14 +581,18 @@ void distrib(string name) {
             om = j;
       Result_tree.Fill();
     }
-    Tl, Bi, K = 1000;
-    par1, par2 = 1000;
+    Tl = 1000;
+    Bi = 1000;
+    K = 1000;
+    par1 = 1000;
+    par2 = 1000;
     test = 1000;
   }
 
   newfile->cd();
   Result_tree.Write();
   newfile->Close();
+  std::cout << "distrib done" << '\n';
 }
 
 void histo_mystere(){
@@ -619,8 +620,6 @@ void histo_mystere(){
   mc0->Scale(0.2);
   mc1->Scale(0.5);
   mc2->Scale(0.3);
-
-  TCanvas* can = new TCanvas("can", "", 1500, 600);
 
   mc0->Draw();
   mc1->Draw("same");
@@ -666,8 +665,8 @@ void eff_om_prep(string name) {
     if (i % 100000 == 0) {
       std::cout << "entry = " << i << '\n';
     }
-    for (int k = 0; k < om_id->size(); k++) {
-      for (int j = 0; j < energy->size(); j++) {
+    for (size_t k = 0; k < om_id->size(); k++) {
+      for (size_t j = 0; j < energy->size(); j++) {
         energy_id.Fill(om_id->at(k)-1);
         if (energy->at(j) > 1) {
           energy_id_cut.Fill(om_id->at(k)-1);
@@ -685,14 +684,11 @@ void eff_om_prep(string name) {
 
 void eff_om(string name) {
 
-  double lim =0;
   double eff_tot =0;
   double eff_cut = 0;
   double eff_tot_error =0;
   double eff_cut_error = 0;
   int om = 0;
-  std::vector<int> *om_id = new std::vector<int>;
-  std::vector<double> *energy = new std::vector<double>;
 
   TFile *file = new TFile(Form("eff_om/eff_prep_%s.root", name.c_str()), "READ");
   TH1D* eff_om_prep = (TH1D*)file->Get("e_id");
@@ -704,7 +700,9 @@ void eff_om(string name) {
   TFile *newfile = new TFile(Form("eff_om/eff_om_%s.root", name.c_str()), "RECREATE");
   TTree new_tree("new_tree","");
   new_tree.Branch("eff_tot", &eff_tot);
+  new_tree.Branch("eff_tot_error", &eff_tot_error);
   new_tree.Branch("eff_cut", &eff_cut);
+  new_tree.Branch("eff_cut_error", &eff_cut_error);
   new_tree.Branch("om", &om);
 
   // for (int i = 0; i < eff_om_prep->GetMaximumBin(); i++) {
@@ -738,5 +736,12 @@ void eff_om(string name) {
 
 int main(int argc, char const *argv[]){
   Fit_Gain_Simu();
+
+    for(int i = 0; i<argc; i++){
+      if(std::string(argv[i]) == "--distrib" || std::string(argv[i]) =="-d" ){
+        distrib("roofit");
+      }
+    }
+
   return 0;
 }
