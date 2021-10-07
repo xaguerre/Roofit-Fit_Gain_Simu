@@ -443,7 +443,7 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  for (int om = 0; om < 259; om++)
+  for (int om = 0; om < 712; om++)
   // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     for (lim = 120; lim < 121; lim =lim+5) {
@@ -603,7 +603,7 @@ void distrib(string name) {
       }
     }
     if (om+1 == j ) {
-            om = j;
+      om = j;
       Result_tree.Fill();
     }
     Tl = 1000;
@@ -798,9 +798,6 @@ void new_eff_om(string name) {
 
   for (int i = 0; i < 712; i++) {
     om = i;
-    int om_col = (i % 13);
-    int om_row = (i / 13);
-
     eff_tot = (energy_id.GetBinContent(i))/5.0e5;
     eff_tot_error = (sqrt(energy_id.GetBinContent(i))/5.0e5);
 
