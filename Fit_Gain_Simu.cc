@@ -367,7 +367,7 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   // yline->SetLineWidth(2);
   // yline->Draw();
 
-  can->SaveAs(Form("Best_fit/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, eres, gain, bin));
+  can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
   // result1->Print("v");
   // result1->Print();
   rootab[0] = result1->minNll();
@@ -443,7 +443,7 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  for (int om = 0; om < 712; om++)
+  for (int om = 651; om < 652; om++)
   // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     for (lim = 120; lim < 121; lim =lim+5) {
@@ -809,6 +809,175 @@ void new_eff_om(string name) {
   new_tree.Write();
   newfile->Close();
   file->Close();
+}
+
+void test(/* arguments */) {
+  mkdir test;
+}
+
+void fusion() {
+
+
+  double om_flux_Tl, om_flux_Bi, om_flux_K, par1, par2, Tl, Bi, K, p1, p2, test, Gain, Chi2, gain;
+  int om, om_id;
+
+
+  TTree Result_tree("Result_tree","");
+  Result_tree.Branch("om_number", &om);
+  Result_tree.Branch("Chi2", &test);
+  Result_tree.Branch("gain", &Gain);
+  Result_tree.Branch("om_flux_Tl", &om_flux_Tl);
+  Result_tree.Branch("om_flux_Bi", &om_flux_Bi);
+  Result_tree.Branch("om_flux_K", &om_flux_K);
+  Result_tree.Branch("param1", &par1);
+  Result_tree.Branch("param2", &par2);
+
+  TFile *file1 = new TFile("histo_fit/histo_roofit_distrib_it.root", "READ");
+  TTree* tree = (TTree*)file1->Get("Result_tree");
+  tree->SetBranchStatus("*",0);
+  tree->SetBranchStatus("om_number",1);
+  tree->SetBranchAddress("om_number", &om_id);
+  tree->SetBranchStatus("om_flux_Tl",1);
+  tree->SetBranchAddress("om_flux_Tl", &Tl);
+  tree->SetBranchStatus("om_flux_Bi",1);
+  tree->SetBranchAddress("om_flux_Bi", &Bi);
+  tree->SetBranchStatus("om_flux_K",1);
+  tree->SetBranchAddress("om_flux_K", &K);
+  tree->SetBranchStatus("param1",1);
+  tree->SetBranchAddress("param1", &p1);
+  tree->SetBranchStatus("param2",1);
+  tree->SetBranchAddress("param2", &p2);
+  tree->SetBranchStatus("Chi2",1);
+  tree->SetBranchAddress("Chi2", &Chi2);
+  tree->SetBranchStatus("gain",1);
+  tree->SetBranchAddress("gain", &gain);
+
+  for (size_t i = 0; i < 260; i++) {
+    tree->GetEntry(i);
+
+      om = om_id;
+      om_flux_Tl = Tl;
+      om_flux_Bi = Bi;
+      om_flux_K = K;
+      par1 = p1;
+      par2 = p2;
+      Gain = gain;
+      test = Chi2;
+      Result_tree.Fill();
+
+  }
+
+  TFile *file2 = new TFile("histo_fit/histo_roofit_distrib_fr.root", "READ");
+  TTree* tree2 = (TTree*)file2->Get("Result_tree");
+  tree2->SetBranchStatus("*",0);
+  tree2->SetBranchStatus("om_number",1);
+  tree2->SetBranchAddress("om_number", &om_id);
+  tree2->SetBranchStatus("om_flux_Tl",1);
+  tree2->SetBranchAddress("om_flux_Tl", &Tl);
+  tree2->SetBranchStatus("om_flux_Bi",1);
+  tree2->SetBranchAddress("om_flux_Bi", &Bi);
+  tree2->SetBranchStatus("om_flux_K",1);
+  tree2->SetBranchAddress("om_flux_K", &K);
+  tree2->SetBranchStatus("param1",1);
+  tree2->SetBranchAddress("param1", &p1);
+  tree2->SetBranchStatus("param2",1);
+  tree2->SetBranchAddress("param2", &p2);
+  tree2->SetBranchStatus("Chi2",1);
+  tree2->SetBranchAddress("Chi2", &Chi2);
+  tree2->SetBranchStatus("gain",1);
+  tree2->SetBranchAddress("gain", &gain);
+
+  for (size_t i = 260; i < 520; i++) {
+    tree2->GetEntry(i);
+    std::cout << "Khi2 = " << Chi2 << " and om = " << om_id << '\n';
+
+      om = om_id;
+      om_flux_Tl = Tl;
+      om_flux_Bi = Bi;
+      om_flux_K = K;
+      par1 = p1;
+      par2 = p2;
+      Gain = gain;
+      test = Chi2;
+      Result_tree.Fill();
+
+  }
+
+  TFile *file3 = new TFile("histo_fit/histo_roofit_distrib_xw.root", "READ");
+  TTree* tree3 = (TTree*)file3->Get("Result_tree");
+  tree3->SetBranchStatus("*",0);
+  tree3->SetBranchStatus("om_number",1);
+  tree3->SetBranchAddress("om_number", &om_id);
+  tree3->SetBranchStatus("om_flux_Tl",1);
+  tree3->SetBranchAddress("om_flux_Tl", &Tl);
+  tree3->SetBranchStatus("om_flux_Bi",1);
+  tree3->SetBranchAddress("om_flux_Bi", &Bi);
+  tree3->SetBranchStatus("om_flux_K",1);
+  tree3->SetBranchAddress("om_flux_K", &K);
+  tree3->SetBranchStatus("param1",1);
+  tree3->SetBranchAddress("param1", &p1);
+  tree3->SetBranchStatus("param2",1);
+  tree3->SetBranchAddress("param2", &p2);
+  tree3->SetBranchStatus("Chi2",1);
+  tree3->SetBranchAddress("Chi2", &Chi2);
+  tree3->SetBranchStatus("gain",1);
+  tree3->SetBranchAddress("gain", &gain);
+
+  for (size_t i = 520; i < 648; i++) {
+    tree3->GetEntry(i);
+
+      om = om_id;
+      om_flux_Tl = Tl;
+      om_flux_Bi = Bi;
+      om_flux_K = K;
+      par1 = p1;
+      par2 = p2;
+      Gain = gain;
+      test = Chi2;
+      Result_tree.Fill();
+
+  }
+
+  TFile *file4 = new TFile("histo_fit/histo_roofit_distrib_gv.root", "READ");
+  TTree* tree4 = (TTree*)file4->Get("Result_tree");
+  tree4->SetBranchStatus("*",0);
+  tree4->SetBranchStatus("om_number",1);
+  tree4->SetBranchAddress("om_number", &om_id);
+  tree4->SetBranchStatus("om_flux_Tl",1);
+  tree4->SetBranchAddress("om_flux_Tl", &Tl);
+  tree4->SetBranchStatus("om_flux_Bi",1);
+  tree4->SetBranchAddress("om_flux_Bi", &Bi);
+  tree4->SetBranchStatus("om_flux_K",1);
+  tree4->SetBranchAddress("om_flux_K", &K);
+  tree4->SetBranchStatus("param1",1);
+  tree4->SetBranchAddress("param1", &p1);
+  tree4->SetBranchStatus("param2",1);
+  tree4->SetBranchAddress("param2", &p2);
+  tree4->SetBranchStatus("Chi2",1);
+  tree4->SetBranchAddress("Chi2", &Chi2);
+  tree4->SetBranchStatus("gain",1);
+  tree4->SetBranchAddress("gain", &gain);
+
+  for (size_t i = 648; i < 712; i++) {
+    tree4->GetEntry(i);
+
+      om = om_id;
+      om_flux_Tl = Tl;
+      om_flux_Bi = Bi;
+      om_flux_K = K;
+      par1 = p1;
+      par2 = p2;
+      Gain = gain;
+      test = Chi2;
+      Result_tree.Fill();
+
+  }
+
+  TFile *newfile = new TFile("histo_fit/test.root", "RECREATE");
+  newfile->cd();
+  Result_tree.Write();
+  newfile->Close();
+
 }
 
 int main(int argc, char const *argv[]){
