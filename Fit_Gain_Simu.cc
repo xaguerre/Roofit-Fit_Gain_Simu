@@ -142,20 +142,20 @@ void LoadMC() {
 }
 
 TH3D* MC_chooser(int om, int comp){
-  TH3D* MC_chooser = NULL;
   if (om <520 && om%13 != 12 && om%13 != 0){
-    MC_chooser = MC_MW8[comp];
+    return MC_MW8[comp];
   }
   else if (om <520 && (om%13 == 12 || om%13 == 0)) {
-    MC_chooser = MC_MW5[comp];
+    return MC_MW5[comp];
   }
   else if (om > 519 && om < 648) {
-    MC_chooser = MC_XW[comp];
+    return MC_XW[comp];
   }
   else if (om > 647) {
-    MC_chooser = MC_GV[comp];
+    return MC_GV[comp];
   }
-  return MC_chooser;
+
+  return NULL;
 }
 
 int eres_chooser(int om){
@@ -356,9 +356,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   frame->GetXaxis()->SetTitle("charge (u.a)");
   frame ->Draw();
   can->SetLogy();
-  // TLatex* l = new TLatex();
-  // l->SetTextFont(40);
-  // l->DrawLatex(60000, 5000, Form("Khi2/NDF = %.3f",rootab[4]));
+  TLatex l;
+  l.SetTextFont(40);
+  l.DrawLatex(60000, 5000, Form("Khi2/NDF = %.3f",rootab[4]));
   // l->DrawLatex(60000, 3000, Form("loglikelihood = %f",rootab[0]));
   // TLine* xline = new TLine(58000, 2500, 100000, 2500);
   // xline->SetLineWidth(2);
@@ -375,6 +375,10 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   rootab[2] = Bi_int/int_data;
   rootab[3] = K_int/int_data;
 
+  delete sum_curve;
+  delete K_curve;
+  delete Bi_curve;
+  delete Tl_curve;
   delete can;
   delete frame;
   delete result1;
@@ -403,11 +407,10 @@ void Fit_Gain_Simu(string wall) {
   float gain, eres = 0;
   int om_number = 0;
   double mean_erf = 0;
-  double* tab = new double[7];
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
 
-  TFile *newfile = new TFile("histo_fit/histo_roofit.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/histo_gv2.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -440,99 +443,99 @@ void Fit_Gain_Simu(string wall) {
   float min = 0.85;
   float max = 1.15;
 
-  int* borne = new int[2];
-  borne = om_chooser(wall);
+  // int* borne = om_chooser(wall);
 
-  for (int om = 651; om < 652; om++)
+  for (int om = 648; om <712; om++)
   // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
-    for (lim = 120; lim < 121; lim =lim+5) {
-      TH3D* MC_Tl_208 = MC_chooser(om, 0);
-      TH3D* MC_Bi_214 = MC_chooser(om, 1);
-      TH3D* MC_K_40 = MC_chooser(om, 2);
 
+    TH3D* MC_Tl_208 = MC_chooser(om, 0);
+    TH3D* MC_Bi_214 = MC_chooser(om, 1);
+    TH3D* MC_K_40 = MC_chooser(om, 2);
 
-      TH1D* spectre_om = NULL;
-      spectre_om = spectre_chooser(om);
+    TH1D* spectre_om = NULL;
+    spectre_om = spectre_chooser(om);
 
-      if (om < 648) {
-        if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
-          delete spectre_om;
-          om++;
-          spectre_om = spectre_chooser(om);
+    if (om < 520) {
+      if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
+        delete spectre_om;
+        om++;
+        spectre_om = spectre_chooser(om);
+      }
+      if (charge_valeur_fit[om] != -1){
+        double *tab = om_gain_fit(om);
+        if (tab[0] == 0) {
+          mean_erf = charge_valeur_fit[om];
         }
-        if (charge_valeur_fit[om] != -1){
-          tab = om_gain_fit(om);
-          if (tab[0] == 0) {
-            mean_erf = charge_valeur_fit[om];
-          }
-          else{
-            mean_erf = 1/tab[0];
-          }
+        else{
+          mean_erf = 1/tab[0];
         }
+        std::cout << "mean erf = " << mean_erf << '\n';
+        delete tab;
       }
-      else{
-        mean_erf = 1.0/22000;
-        min = 0.55;
-        max = 1.2;
-      }
-      om_number = om;
-      for (int bin =1; bin < lim; bin++) {
-        spectre_om->SetBinContent(bin, 0);
-      }
-      int eres = eres_chooser(om);
-      int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
-      for (int gain_count = 0; gain_count <150; gain_count++) {
-        std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
-        if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
-
-          gain = (gain_bin_min + gain_bin_width*(gain_count-1));
-          std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
-          TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
-          TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
-          TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
-
-          for (int i = 0; i < lim; i++) {
-            mc0->SetBinContent(i, 0);
-            mc1->SetBinContent(i, 0);
-            mc2->SetBinContent(i, 0);
-          }
-
-          roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, lim);
-          logL = rootab[0];
-          Chi2 = rootab[4];
-          param1 = rootab[1];
-          param2 = rootab[2];
-          param3 = rootab[3];
-
-          mc0->Scale(param1*spectre_om->Integral());
-          om_flux_Tl = (mc0->Integral()*(10/9.0))/(1800*get_om_eff("Tl", om)*250000);
-          std::cout << "om flux Tl = " << om_flux_Tl << '\n';
-          mc1->Scale(param2*spectre_om->Integral());
-          om_flux_Bi = (mc1->Integral()*(10/9.0))/(1800*get_om_eff("Bi", om)*250000);
-          std::cout << "om flux Bi = " << om_flux_Bi << '\n';
-          mc2->Scale(param3*spectre_om->Integral());
-          om_flux_K = (mc2->Integral()*(10/9.0))/(1800*get_om_eff("K", om)*250000);
-          std::cout << "om flux K = " << om_flux_K << '\n';
-
-          Result_tree.Fill();
-
-          delete mc0;
-          delete mc1;
-          delete mc2;
-        }
-      }
-      delete spectre_om;
     }
+    else if (om < 648 && om > 519) {
+      mean_erf = charge_valeur_fit[om];
+    }
+    else{
+      mean_erf = 1.0/22000;
+      min = 0.8;
+      max = 1.8;
+    }
+    om_number = om;
+    int eres = eres_chooser(om);
+    int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
+    for (int gain_count = 0; gain_count <150; gain_count++) {
+      std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
+      if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
+
+        gain = (gain_bin_min + gain_bin_width*(gain_count-1));
+        std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
+
+        TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
+        TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+        TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+        int bin = gain*1024/200000.0;
+
+        for (int i = 0; i < bin; i++) {
+          mc0->SetBinContent(i, 0);
+          mc1->SetBinContent(i, 0);
+          mc2->SetBinContent(i, 0);
+          spectre_om->SetBinContent(i, 0);
+        }
+
+        roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
+        logL = rootab[0];
+        Chi2 = rootab[4];
+        param1 = rootab[1];
+        param2 = rootab[2];
+        param3 = rootab[3];
+
+        mc0->Scale(param1*spectre_om->Integral());
+        om_flux_Tl = (mc0->Integral()*(10/9.0))/(1800*get_om_eff("Tl", om)*250000);
+        std::cout << "om flux Tl = " << om_flux_Tl << '\n';
+        mc1->Scale(param2*spectre_om->Integral());
+        om_flux_Bi = (mc1->Integral()*(10/9.0))/(1800*get_om_eff("Bi", om)*250000);
+        std::cout << "om flux Bi = " << om_flux_Bi << '\n';
+        mc2->Scale(param3*spectre_om->Integral());
+        om_flux_K = (mc2->Integral()*(10/9.0))/(1800*get_om_eff("K", om)*250000);
+        std::cout << "om flux K = " << om_flux_K << '\n';
 
 
-    // delete MC_Tl_208;
-    // delete MC_Bi_214;
-    // delete MC_K_40;
+        Result_tree.Fill();
+
+        delete mc0;
+        delete mc1;
+        delete mc2;
+      }
+    }
+    delete spectre_om;
+
   }
   newfile->cd();
   Result_tree.Write();
   newfile->Close();
+  std::cout << "good end" << '\n';
 }
 
 void distrib(string name) {
@@ -662,6 +665,14 @@ void histo_mystere(){
   file->Close();
 
 }
+
+void name(/* arguments */) {
+ TH3* MC = new TH3D("MC", "MC", 1024, 0, 200000,1,0,1,100,0,1);
+ TRandom3 rando;
+ MC->FillRandom("",1000);
+ MC->Draw("colz");
+}
+
 
 void eff_om_prep(string name) {
 
@@ -811,10 +822,6 @@ void new_eff_om(string name) {
   file->Close();
 }
 
-void test(/* arguments */) {
-  mkdir test;
-}
-
 void fusion() {
 
 
@@ -832,7 +839,7 @@ void fusion() {
   Result_tree.Branch("param1", &par1);
   Result_tree.Branch("param2", &par2);
 
-  TFile *file1 = new TFile("histo_fit/histo_roofit_distrib_it.root", "READ");
+  TFile *file1 = new TFile("histo_fit/histo_it2_distrib.root", "READ");
   TTree* tree = (TTree*)file1->Get("Result_tree");
   tree->SetBranchStatus("*",0);
   tree->SetBranchStatus("om_number",1);
@@ -855,19 +862,19 @@ void fusion() {
   for (size_t i = 0; i < 260; i++) {
     tree->GetEntry(i);
 
-      om = om_id;
-      om_flux_Tl = Tl;
-      om_flux_Bi = Bi;
-      om_flux_K = K;
-      par1 = p1;
-      par2 = p2;
-      Gain = gain;
-      test = Chi2;
-      Result_tree.Fill();
+    om = om_id;
+    om_flux_Tl = Tl;
+    om_flux_Bi = Bi;
+    om_flux_K = K;
+    par1 = p1;
+    par2 = p2;
+    Gain = gain;
+    test = Chi2;
+    Result_tree.Fill();
 
   }
 
-  TFile *file2 = new TFile("histo_fit/histo_roofit_distrib_fr.root", "READ");
+  TFile *file2 = new TFile("histo_fit/histo_fr2_distrib.root", "READ");
   TTree* tree2 = (TTree*)file2->Get("Result_tree");
   tree2->SetBranchStatus("*",0);
   tree2->SetBranchStatus("om_number",1);
@@ -889,21 +896,20 @@ void fusion() {
 
   for (size_t i = 260; i < 520; i++) {
     tree2->GetEntry(i);
-    std::cout << "Khi2 = " << Chi2 << " and om = " << om_id << '\n';
 
-      om = om_id;
-      om_flux_Tl = Tl;
-      om_flux_Bi = Bi;
-      om_flux_K = K;
-      par1 = p1;
-      par2 = p2;
-      Gain = gain;
-      test = Chi2;
-      Result_tree.Fill();
+    om = om_id;
+    om_flux_Tl = Tl;
+    om_flux_Bi = Bi;
+    om_flux_K = K;
+    par1 = p1;
+    par2 = p2;
+    Gain = gain;
+    test = Chi2;
+    Result_tree.Fill();
 
   }
 
-  TFile *file3 = new TFile("histo_fit/histo_roofit_distrib_xw.root", "READ");
+  TFile *file3 = new TFile("histo_fit/histo_xw2_distrib.root", "READ");
   TTree* tree3 = (TTree*)file3->Get("Result_tree");
   tree3->SetBranchStatus("*",0);
   tree3->SetBranchStatus("om_number",1);
@@ -926,19 +932,19 @@ void fusion() {
   for (size_t i = 520; i < 648; i++) {
     tree3->GetEntry(i);
 
-      om = om_id;
-      om_flux_Tl = Tl;
-      om_flux_Bi = Bi;
-      om_flux_K = K;
-      par1 = p1;
-      par2 = p2;
-      Gain = gain;
-      test = Chi2;
-      Result_tree.Fill();
+    om = om_id;
+    om_flux_Tl = Tl;
+    om_flux_Bi = Bi;
+    om_flux_K = K;
+    par1 = p1;
+    par2 = p2;
+    Gain = gain;
+    test = Chi2;
+    Result_tree.Fill();
 
   }
 
-  TFile *file4 = new TFile("histo_fit/histo_roofit_distrib_gv.root", "READ");
+  TFile *file4 = new TFile("histo_fit/histo_gv2_distrib.root", "READ");
   TTree* tree4 = (TTree*)file4->Get("Result_tree");
   tree4->SetBranchStatus("*",0);
   tree4->SetBranchStatus("om_number",1);
@@ -961,22 +967,23 @@ void fusion() {
   for (size_t i = 648; i < 712; i++) {
     tree4->GetEntry(i);
 
-      om = om_id;
-      om_flux_Tl = Tl;
-      om_flux_Bi = Bi;
-      om_flux_K = K;
-      par1 = p1;
-      par2 = p2;
-      Gain = gain;
-      test = Chi2;
-      Result_tree.Fill();
+    om = om_id;
+    om_flux_Tl = Tl;
+    om_flux_Bi = Bi;
+    om_flux_K = K;
+    par1 = p1;
+    par2 = p2;
+    Gain = gain;
+    test = Chi2;
+    Result_tree.Fill();
 
   }
 
-  TFile *newfile = new TFile("histo_fit/test.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/test2.root", "RECREATE");
   newfile->cd();
   Result_tree.Write();
   newfile->Close();
+  std::cout << "ok " << '\n';
 
 }
 
