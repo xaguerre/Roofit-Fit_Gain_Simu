@@ -50,18 +50,8 @@ const int charge_n_bin = 1024;
 const float charge_bin_min = 0e-05;
 const float charge_bin_max = 200000;
 
-TH1D* spectre_charge_it(int om_number){
-  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_422.root", "READ");
-  gROOT->cd();
-  TH2F* charge = (TH2F*)file->Get("charge");
-
-  TH1D* spectre_charge = charge->ProjectionY(Form("charge%03d",om_number), om_number+1, om_number+1);
-  file->Close();
-  return spectre_charge;
-}
-
-TH1D* spectre_charge_XW(int om_number){
-  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_449.root", "READ");
+TH1D* spectre_charge_full(int om_number){
+  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_611.root", "READ");
   gROOT->cd();
   TH2F* charge = (TH2F*)file->Get("histo_pm_charge");
 
@@ -70,28 +60,14 @@ TH1D* spectre_charge_XW(int om_number){
   return spectre_charge;
 }
 
-TH1D* spectre_charge_fr(int om_number){
-  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_435.root", "READ");
+TH1D* dead_spectre(int om_number){
+  TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_610.root", "READ");
   gROOT->cd();
   TH2F* charge = (TH2F*)file->Get("histo_pm_charge");
 
-  TH1D* spectre_charge = charge->ProjectionY(Form("charge%03d",om_number), om_number+1, om_number+1);
+  TH1D* spectre_charge = charge->ProjectionY(Form("charge0%03d",om_number), om_number+1, om_number+1);
   file->Close();
   return spectre_charge;
-}
-
-TH1D* spectre_chooser(int om){
-  TH1D* spectre_chooser = NULL;
-  if (om <260){
-    spectre_chooser = spectre_charge_it(om);
-  }
-  else if (om <520) {
-    spectre_chooser = spectre_charge_fr(om);
-  }
-  else if (om >519) {
-    spectre_chooser = spectre_charge_XW(om);
-  }
-  return spectre_chooser;
 }
 
 TH3D *MC_MW8[3] = {NULL, NULL, NULL};
@@ -139,6 +115,22 @@ void LoadMC() {
   TFile *histo_file_K_GV = new TFile("Histo_simu_new/MC_simu_K_40_recOC_new_eres_53_gain_221_OC_GV.root", "READ");
   histo_file_K_GV->cd();
   MC_GV[2] = (TH3D*)histo_file_K_GV->Get("MC_simu_K_40_recOC_new_ubc");
+}
+
+float dead_time(int om, float gain){
+  TH1D* data = NULL;
+  data = spectre_charge_full(om);
+  data->Scale(1.0/(15*60+2));
+  TH1D* spectre = NULL;
+  spectre = dead_spectre(om);
+  spectre->Scale(1.0/(30*60+1));
+  float dead_time = 0;
+  data->Draw();
+  spectre->Draw("same");
+  dead_time = 1 + data->Integral(gain ,1024)/spectre->Integral(gain ,1024);
+  delete data;
+  delete spectre;
+  return dead_time;
 }
 
 TH3D* MC_chooser(int om, int comp){
@@ -192,16 +184,7 @@ double* om_gain_fit(int om){
   canvas->SetLogy();
 
   TH1D* spectre_om = NULL;
-  if (om <260){
-    spectre_om = spectre_charge_it(om);
-  }
-  else if (om <520) {
-    spectre_om = spectre_charge_fr(om);
-  }
-  else if (om >519) {
-    spectre_om = spectre_charge_XW(om);
-  }
-
+  spectre_om = spectre_charge_full(om);
   TF1* f_ComptonEdgePoly = new TF1 ("f_ComptonEdgePoly","[0]/2.0*(1+TMath::Erf(([1]-x)/(TMath::Sqrt(2)*[2])))+[3]*x", 40000, 90000);
   f_ComptonEdgePoly->SetParNames("N_evt","Mean","Sigma","Nbg" );
 
@@ -269,15 +252,19 @@ double* om_gain_fit(int om){
 
 int* om_chooser(string om){
   int* lim = new int[2];
-  if(om == "-MW"  ){
+  if(om == "-MWIT" || om == "-1"){
     lim[0] = 0;
-    lim[1] = 520;
+    lim[1] = 259;
   }
-  if(om == "-XW"  ){
+  if(om == "-MWFR" || om == "-2"){
+    lim[0] = 260;
+    lim[1] = 519;
+  }
+  if(om == "-XW" || om == "-3"){
     lim[0] = 520;
     lim[1] = 648;
   }
-  if(om == "-GV"  ){
+  if(om == "-GV" || om == "-4"){
     lim[0] = 648;
     lim[1] = 712;
   }
@@ -409,8 +396,8 @@ void Fit_Gain_Simu(string wall) {
   double mean_erf = 0;
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
-
-  TFile *newfile = new TFile("histo_fit/histo_gv2.root", "RECREATE");
+  float deadt;
+  TFile *newfile = new TFile("histo_fit/fit_it.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -425,6 +412,7 @@ void Fit_Gain_Simu(string wall) {
   Result_tree.Branch("om_flux_K", &om_flux_K);
   Result_tree.Branch("om_flux_K", &om_flux_K);
   Result_tree.Branch("lim", &lim);
+  Result_tree.Branch("deadt", &deadt);
 
   std::ifstream  charge("gain_data/Resultat_mean_energie_charge_total.txt");
   float charge_valeur_fit [712];
@@ -436,31 +424,27 @@ void Fit_Gain_Simu(string wall) {
   }
   double* rootab = new double[5];
 
-  // TFile *histo = new TFile("Histo_simu_new/Histo_mystere.root", "READ");
-  // histo->cd();
-  // TH1D* MC = (TH1D*)histo->Get("MC");
-
   float min = 0.85;
   float max = 1.15;
 
-  // int* borne = om_chooser(wall);
+  int* borne = new int[2];
+  borne = om_chooser(wall);
 
-  for (int om = 648; om <712; om++)
+  for (int om = 0; om <260; om++)
   // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
-
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
     TH3D* MC_K_40 = MC_chooser(om, 2);
 
     TH1D* spectre_om = NULL;
-    spectre_om = spectre_chooser(om);
+    spectre_om = spectre_charge_full(om);
 
     if (om < 520) {
       if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
         delete spectre_om;
         om++;
-        spectre_om = spectre_chooser(om);
+        spectre_om = spectre_charge_full(om);
       }
       if (charge_valeur_fit[om] != -1){
         double *tab = om_gain_fit(om);
@@ -470,7 +454,6 @@ void Fit_Gain_Simu(string wall) {
         else{
           mean_erf = 1/tab[0];
         }
-        std::cout << "mean erf = " << mean_erf << '\n';
         delete tab;
       }
     }
@@ -511,16 +494,20 @@ void Fit_Gain_Simu(string wall) {
         param2 = rootab[2];
         param3 = rootab[3];
 
-        mc0->Scale(param1*spectre_om->Integral());
-        om_flux_Tl = (mc0->Integral()*(10/9.0))/(1800*get_om_eff("Tl", om)*250000);
+        deadt = dead_time(om, bin);
+        spectre_om = spectre_charge_full(om);
+        mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
+        mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+        mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
+        mc0->Scale(param1*spectre_om->Integral()/mc0->Integral());
+        om_flux_Tl = (mc0->Integral()*deadt)/(902*get_om_eff("Tl", om)*250000);
         std::cout << "om flux Tl = " << om_flux_Tl << '\n';
-        mc1->Scale(param2*spectre_om->Integral());
-        om_flux_Bi = (mc1->Integral()*(10/9.0))/(1800*get_om_eff("Bi", om)*250000);
+        mc1->Scale(param2*spectre_om->Integral()/mc1->Integral());
+        om_flux_Bi = (mc1->Integral()*deadt)/(902*get_om_eff("Bi", om)*250000);
         std::cout << "om flux Bi = " << om_flux_Bi << '\n';
-        mc2->Scale(param3*spectre_om->Integral());
-        om_flux_K = (mc2->Integral()*(10/9.0))/(1800*get_om_eff("K", om)*250000);
+        mc2->Scale(param3*spectre_om->Integral()/mc2->Integral());
+        om_flux_K = (mc2->Integral()*deadt)/(902*get_om_eff("K", om)*250000);
         std::cout << "om flux K = " << om_flux_K << '\n';
-
 
         Result_tree.Fill();
 
@@ -539,7 +526,7 @@ void Fit_Gain_Simu(string wall) {
 }
 
 void distrib(string name) {
-  TFile *eff_file = new TFile(Form("histo_fit/histo_%s.root", name.c_str()), "READ");
+  TFile *eff_file = new TFile(Form("histo_fit/%s.root", name.c_str()), "READ");
   // std::ofstream outFile("Best_Khi2.txt");
   int om_number =0;
   double Chi2 = 0;
@@ -665,14 +652,6 @@ void histo_mystere(){
   file->Close();
 
 }
-
-void name(/* arguments */) {
- TH3* MC = new TH3D("MC", "MC", 1024, 0, 200000,1,0,1,100,0,1);
- TRandom3 rando;
- MC->FillRandom("",1000);
- MC->Draw("colz");
-}
-
 
 void eff_om_prep(string name) {
 
@@ -823,11 +802,8 @@ void new_eff_om(string name) {
 }
 
 void fusion() {
-
-
   double om_flux_Tl, om_flux_Bi, om_flux_K, par1, par2, Tl, Bi, K, p1, p2, test, Gain, Chi2, gain;
   int om, om_id;
-
 
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("om_number", &om);
