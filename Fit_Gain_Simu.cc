@@ -53,6 +53,11 @@ const float charge_bin_max = 200000;
 TH2F* charge_spectre = NULL;
 TH2F* dead_charge_spectre = NULL;
 
+TH3D *MC_MW8[3] = {NULL, NULL, NULL};
+TH3D *MC_MW5[3] = {NULL, NULL, NULL};
+TH3D *MC_XW[3]  = {NULL, NULL, NULL};
+TH3D *MC_GV[3]  = {NULL, NULL, NULL};
+
 void Load_spectre(){
   TFile *file = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_611.root", "READ");
   gROOT->cd();
@@ -77,10 +82,46 @@ TH1D* dead_spectre(int om_number){
   return dead_charge;
 }
 
-TH3D *MC_MW8[3] = {NULL, NULL, NULL};
-TH3D *MC_MW5[3] = {NULL, NULL, NULL};
-TH3D *MC_XW[3]  = {NULL, NULL, NULL};
-TH3D *MC_GV[3]  = {NULL, NULL, NULL};
+void charge_to_ampl() {
+
+  double amplitude, charge;
+  int om_number, om;
+  double coef;
+
+  TTree Result_tree("Result_tree","");
+  Result_tree.Branch("om_number", &om);
+  Result_tree.Branch("coef", &coef);
+
+  TFile *file = new TFile("histo_kolmo/histo_donee/histo_Li_system_611.root", "READ");
+  TTree* tree = (TTree*)file->Get("Result_tree");
+  tree->SetBranchStatus("*",0);
+  tree->SetBranchStatus("om_number",1);
+  tree->SetBranchAddress("om_number", &om_number);
+  tree->SetBranchStatus("amplitude_tree",1);
+  tree->SetBranchAddress("amplitude_tree", &amplitude);
+  tree->SetBranchStatus("charge_tree",1);
+  tree->SetBranchAddress("charge_tree", &charge);
+
+  for (int i = 0; i < 712; i++) {
+    if (i%100 == 0) {
+      std::cout << "entry = " << i << '\n';
+    }
+    TH1D *amplitude_charge = new TH1D ("amplitude_charge", "", 1000, 0, 0.03);
+    tree->Project("amplitude_charge", "amplitude_tree/charge_tree", Form("om_number == %i && amplitude_tree > 100", i));
+    amplitude_charge->Draw();
+    coef = amplitude_charge->GetMean();
+    om = i;
+    Result_tree.Fill();
+    return;
+    delete amplitude_charge;
+  }
+
+  TFile *newfile = new TFile("charge_to_ampl.root", "RECREATE");
+  newfile->cd();
+  Result_tree.Write();
+  newfile->Close();
+
+}
 
 void LoadMC() {
   TFile *histo_file_Tl_MW8 = new TFile("Histo_simu_new/MC_simu_Tl_208_recOC_new_eres_53_gain_221_OC_MW8.root", "READ");
@@ -389,7 +430,7 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
 
 double get_om_eff(string compo, int om) {
   double om_eff = 0;
-  TFile *newfile = new TFile(Form("eff_om_%s.root", compo.c_str()), "READ");
+  TFile *newfile = new TFile(Form("eff_om/eff_om_%s.root", compo.c_str()), "READ");
 
   TTree* tree = (TTree*)newfile->Get("new_tree");
   tree->SetBranchStatus("*",0);
@@ -407,14 +448,15 @@ void Fit_Gain_Simu(string wall) {
   Load_dead_spectre();
   TH1::SetDefaultSumw2();
 
-  double logL, Chi2, param1, param2, param3 = 0;
+  double logL, Chi2, param1, param2, param3, om_counting_Tl, om_counting_Bi, om_counting_K, eff_Tl, eff_Bi, eff_K;
+  double int_cut_mc0, int_cut_mc1, int_cut_mc2, int_full_mc0, int_full_mc1, int_full_mc2;
   float gain, eres = 0;
   int om_number = 0;
   double mean_erf = 0;
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
   float deadt;
-  TFile *newfile = new TFile("histo_fit/fit_.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/fit_fr.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -427,9 +469,14 @@ void Fit_Gain_Simu(string wall) {
   Result_tree.Branch("om_flux_Tl", &om_flux_Tl);
   Result_tree.Branch("om_flux_Bi", &om_flux_Bi);
   Result_tree.Branch("om_flux_K", &om_flux_K);
-  Result_tree.Branch("om_flux_K", &om_flux_K);
   Result_tree.Branch("lim", &lim);
   Result_tree.Branch("deadt", &deadt);
+  Result_tree.Branch("om_counting_Tl", &om_counting_Tl);
+  Result_tree.Branch("om_counting_Bi", &om_counting_Bi);
+  Result_tree.Branch("om_counting_K", &om_counting_K);
+  Result_tree.Branch("eff_Tl", &eff_Tl);
+  Result_tree.Branch("eff_Bi", &eff_Bi);
+  Result_tree.Branch("eff_K", &eff_K);
 
   std::ifstream  charge("gain_data/Resultat_mean_energie_charge_total.txt");
   float charge_valeur_fit [712];
@@ -447,8 +494,8 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  for (int om = 260; om < 520; om++)
-  // for (int om = borne[0]; om < borne[1]; om = om +1)
+  // for (int om = 260; om < 520; om++)
+  for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
@@ -496,12 +543,20 @@ void Fit_Gain_Simu(string wall) {
         TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
         int bin = gain*1024/200000.0;
 
+        int_full_mc0 = mc0->Integral();
+        int_full_mc1 = mc2->Integral();
+        int_full_mc2 = mc2->Integral();
+
         for (int i = 0; i < bin; i++) {
           mc0->SetBinContent(i, 0);
           mc1->SetBinContent(i, 0);
           mc2->SetBinContent(i, 0);
           spectre_om->SetBinContent(i, 0);
         }
+
+        int_cut_mc0 = mc0->Integral();
+        int_cut_mc1 = mc1->Integral();
+        int_cut_mc2 = mc2->Integral();
 
         roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
         logL = rootab[0];
@@ -510,22 +565,27 @@ void Fit_Gain_Simu(string wall) {
         param2 = rootab[2];
         param3 = rootab[3];
 
-        if (om < 520) {
-          deadt = dead_time(om, bin);
-        }
-        else {
-          deadt = 1;
-        }
-        spectre_om = spectre_charge_full(om);
+        deadt = dead_time(om, bin);
+        delete mc0;
+        delete mc1;
+        delete mc2;
+
         mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
         mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
         mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
-        mc0->Scale(param1*spectre_om->Integral()/mc0->Integral());
-        om_flux_Tl = (mc0->Integral()*deadt)/(902*get_om_eff("Tl", om)*250000);
-        mc1->Scale(param2*spectre_om->Integral()/mc1->Integral());
-        om_flux_Bi = (mc1->Integral()*deadt)/(902*get_om_eff("Bi", om)*250000);
-        mc2->Scale(param3*spectre_om->Integral()/mc2->Integral());
-        om_flux_K = (mc2->Integral()*deadt)/(902*get_om_eff("K", om)*250000);
+
+        mc0->Scale(spectre_om->Integral()*param1*int_full_mc0/int_cut_mc0);
+        om_counting_Tl = mc0->Integral();
+        eff_Tl = get_om_eff("Tl", om);
+        om_flux_Tl = (mc0->Integral()*deadt)/(902*eff_Tl*250000);
+        mc1->Scale(spectre_om->Integral()*param2*int_full_mc1/int_cut_mc1);
+        om_counting_Bi = mc1->Integral();
+        eff_Bi = get_om_eff("Bi", om);
+        om_flux_Bi = (mc1->Integral()*deadt)/(902*eff_Bi*250000);
+        mc2->Scale(spectre_om->Integral()*param3*int_full_mc2/int_cut_mc2);
+        om_counting_K = mc2->Integral();
+        eff_K = get_om_eff("K", om);
+        om_flux_K = (mc2->Integral()*deadt)/(902*eff_K*250000);
 
         Result_tree.Fill();
 
@@ -547,7 +607,7 @@ void distrib(string name) {
   TFile *eff_file = new TFile(Form("histo_fit/%s.root", name.c_str()), "READ");
   // std::ofstream outFile("Best_Khi2.txt");
   int om_number =0;
-  double Chi2 = 0;
+  double Chi2, om_counting_Tl, om_counting_Bi, om_counting_K, counting_Tl, counting_Bi, counting_K, effTl, effBi, effK, eff_Tl, eff_Bi, eff_K;
   float gain = 0;
   float eres = 0;
   double om_flux_K = 0;
@@ -578,6 +638,19 @@ void distrib(string name) {
   eff_tree->SetBranchAddress("param2", &param2);
   eff_tree->SetBranchStatus("deadt",1);
   eff_tree->SetBranchAddress("deadt", &deadt);
+  eff_tree->SetBranchStatus("om_counting_Tl",1);
+  eff_tree->SetBranchAddress("om_counting_Tl", &om_counting_Tl);
+  eff_tree->SetBranchStatus("om_counting_Bi",1);
+  eff_tree->SetBranchAddress("om_counting_Bi", &om_counting_Bi);
+  eff_tree->SetBranchStatus("om_counting_K",1);
+  eff_tree->SetBranchAddress("om_counting_K", &om_counting_K);
+  eff_tree->SetBranchStatus("eff_Tl",1);
+  eff_tree->SetBranchAddress("eff_Tl", &eff_Tl);
+  eff_tree->SetBranchStatus("eff_Bi",1);
+  eff_tree->SetBranchAddress("eff_Bi", &eff_Bi);
+  eff_tree->SetBranchStatus("eff_K",1);
+  eff_tree->SetBranchAddress("eff_K", &eff_K);
+
   double Gain = 0;
   double Tl = 10000;
   double Bi = 10000;
@@ -598,6 +671,12 @@ void distrib(string name) {
   Result_tree.Branch("param1", &par1);
   Result_tree.Branch("param2", &par2);
   Result_tree.Branch("deadt", &dt);
+  Result_tree.Branch("om_counting_Tl", &counting_Tl);
+  Result_tree.Branch("om_counting_Bi", &counting_Bi);
+  Result_tree.Branch("om_counting_K", &counting_K);
+  Result_tree.Branch("eff_Tl", &effTl);
+  Result_tree.Branch("eff_Bi", &effBi);
+  Result_tree.Branch("eff_K", &effK);
 
   for (int j = 0; j < 712; j++) {
     for (double i = 0; i < eff_tree->GetEntries(); i++) {
@@ -612,6 +691,12 @@ void distrib(string name) {
           par1 = param1;
           par2 = param2;
           dt = deadt;
+          counting_Tl = om_counting_Tl;
+          counting_Bi = om_counting_Bi;
+          counting_K = om_counting_K;
+          effTl = eff_Tl;
+          effBi = eff_Bi;
+          effK = eff_K;
         }
       }
     }
@@ -706,7 +791,7 @@ void eff_om_prep(string name) {
       for (size_t j = 0; j < energy->size(); j++) {
         energy_id.Fill(om_id->at(k)-1);
         if (energy->at(j) > 1) {
-          energy_id_cut.Fill(om_id->at(k)-1);
+          energy_id_cut.Fill(om_id->at(k));
         }
       }
     }
@@ -824,7 +909,7 @@ void new_eff_om(string name) {
 }
 
 void fusion() {
-  double om_flux_Tl, om_flux_Bi, om_flux_K, par1, par2, Tl, Bi, K, p1, p2, test, Gain, Chi2, gain;
+  double om_flux_Tl, om_flux_Bi, om_flux_K, par1, par2, Tl, Bi, K, p1, p2, test, Gain, Chi2, gain, om_counting_Tl, om_counting_Bi, om_counting_K, counting_Tl, counting_Bi, counting_K, effTl, effBi, effK, eff_Tl, eff_Bi, eff_K;
   int om, om_id;
   float deadt, dt;
   TTree Result_tree("Result_tree","");
@@ -837,6 +922,12 @@ void fusion() {
   Result_tree.Branch("param1", &par1);
   Result_tree.Branch("param2", &par2);
   Result_tree.Branch("deadt", &dt);
+  Result_tree.Branch("om_counting_Tl", &counting_Tl);
+  Result_tree.Branch("om_counting_Bi", &counting_Bi);
+  Result_tree.Branch("om_counting_K", &counting_K);
+  Result_tree.Branch("eff_Tl", &effTl);
+  Result_tree.Branch("eff_Bi", &effBi);
+  Result_tree.Branch("eff_K", &effK);
 
   TFile *file1 = new TFile("histo_fit/distrib_fit_it.root", "READ");
   TTree* tree = (TTree*)file1->Get("Result_tree");
@@ -859,6 +950,18 @@ void fusion() {
   tree->SetBranchAddress("gain", &gain);
   tree->SetBranchStatus("deadt",1);
   tree->SetBranchAddress("deadt", &deadt);
+  tree->SetBranchStatus("om_counting_Tl",1);
+  tree->SetBranchAddress("om_counting_Tl", &om_counting_Tl);
+  tree->SetBranchStatus("om_counting_Bi",1);
+  tree->SetBranchAddress("om_counting_Bi", &om_counting_Bi);
+  tree->SetBranchStatus("om_counting_K",1);
+  tree->SetBranchAddress("om_counting_K", &om_counting_K);
+  tree->SetBranchStatus("eff_Tl",1);
+  tree->SetBranchAddress("eff_Tl", &eff_Tl);
+  tree->SetBranchStatus("eff_Bi",1);
+  tree->SetBranchAddress("eff_Bi", &eff_Bi);
+  tree->SetBranchStatus("eff_K",1);
+  tree->SetBranchAddress("eff_K", &eff_K);
 
   for (size_t i = 0; i < 260; i++) {
     tree->GetEntry(i);
@@ -871,6 +974,12 @@ void fusion() {
     par2 = p2;
     Gain = gain;
     test = Chi2;
+    counting_Tl = om_counting_Tl;
+    counting_Bi = om_counting_Bi;
+    counting_K = om_counting_K;
+    effTl = eff_Tl;
+    effBi = eff_Bi;
+    effK = eff_K;
     Result_tree.Fill();
   }
 
@@ -897,6 +1006,18 @@ void fusion() {
   tree2->SetBranchAddress("gain", &gain);
   tree2->SetBranchStatus("deadt",1);
   tree2->SetBranchAddress("deadt", &deadt);
+  tree2->SetBranchStatus("om_counting_Tl",1);
+  tree2->SetBranchAddress("om_counting_Tl", &om_counting_Tl);
+  tree2->SetBranchStatus("om_counting_Bi",1);
+  tree2->SetBranchAddress("om_counting_Bi", &om_counting_Bi);
+  tree2->SetBranchStatus("om_counting_K",1);
+  tree2->SetBranchAddress("om_counting_K", &om_counting_K);
+  tree2->SetBranchStatus("eff_Tl",1);
+  tree2->SetBranchAddress("eff_Tl", &eff_Tl);
+  tree2->SetBranchStatus("eff_Bi",1);
+  tree2->SetBranchAddress("eff_Bi", &eff_Bi);
+  tree2->SetBranchStatus("eff_K",1);
+  tree2->SetBranchAddress("eff_K", &eff_K);
 
   for (size_t i = 260; i < 520; i++) {
     tree2->GetEntry(i);
@@ -909,6 +1030,12 @@ void fusion() {
     par2 = p2;
     Gain = gain;
     test = Chi2;
+    counting_Tl = om_counting_Tl;
+    counting_Bi = om_counting_Bi;
+    counting_K = om_counting_K;
+    effTl = eff_Tl;
+    effBi = eff_Bi;
+    effK = eff_K;
     Result_tree.Fill();
   }
 
@@ -935,6 +1062,18 @@ void fusion() {
   tree3->SetBranchAddress("gain", &gain);
   tree3->SetBranchStatus("deadt",1);
   tree3->SetBranchAddress("deadt", &deadt);
+  tree3->SetBranchStatus("om_counting_Tl",1);
+  tree3->SetBranchAddress("om_counting_Tl", &om_counting_Tl);
+  tree3->SetBranchStatus("om_counting_Bi",1);
+  tree3->SetBranchAddress("om_counting_Bi", &om_counting_Bi);
+  tree3->SetBranchStatus("om_counting_K",1);
+  tree3->SetBranchAddress("om_counting_K", &om_counting_K);
+  tree3->SetBranchStatus("eff_Tl",1);
+  tree3->SetBranchAddress("eff_Tl", &eff_Tl);
+  tree3->SetBranchStatus("eff_Bi",1);
+  tree3->SetBranchAddress("eff_Bi", &eff_Bi);
+  tree3->SetBranchStatus("eff_K",1);
+  tree3->SetBranchAddress("eff_K", &eff_K);
 
   for (size_t i = 520; i < 648; i++) {
     tree3->GetEntry(i);
@@ -947,6 +1086,12 @@ void fusion() {
     par2 = p2;
     Gain = gain;
     test = Chi2;
+    counting_Tl = om_counting_Tl;
+    counting_Bi = om_counting_Bi;
+    counting_K = om_counting_K;
+    effTl = eff_Tl;
+    effBi = eff_Bi;
+    effK = eff_K;
     Result_tree.Fill();
 
   }
@@ -974,6 +1119,18 @@ void fusion() {
   tree4->SetBranchAddress("gain", &gain);
   tree4->SetBranchStatus("deadt",1);
   tree4->SetBranchAddress("deadt", &deadt);
+  tree4->SetBranchStatus("om_counting_Tl",1);
+  tree4->SetBranchAddress("om_counting_Tl", &om_counting_Tl);
+  tree4->SetBranchStatus("om_counting_Bi",1);
+  tree4->SetBranchAddress("om_counting_Bi", &om_counting_Bi);
+  tree4->SetBranchStatus("om_counting_K",1);
+  tree4->SetBranchAddress("om_counting_K", &om_counting_K);
+  tree4->SetBranchStatus("eff_Tl",1);
+  tree4->SetBranchAddress("eff_Tl", &eff_Tl);
+  tree4->SetBranchStatus("eff_Bi",1);
+  tree4->SetBranchAddress("eff_Bi", &eff_Bi);
+  tree4->SetBranchStatus("eff_K",1);
+  tree4->SetBranchAddress("eff_K", &eff_K);
 
   for (size_t i = 648; i < 712; i++) {
     tree4->GetEntry(i);
@@ -986,11 +1143,17 @@ void fusion() {
     par2 = p2;
     Gain = gain;
     test = Chi2;
+    counting_Tl = om_counting_Tl;
+    counting_Bi = om_counting_Bi;
+    counting_K = om_counting_K;
+    effTl = eff_Tl;
+    effBi = eff_Bi;
+    effK = eff_K;
     Result_tree.Fill();
 
   }
 
-  TFile *newfile = new TFile("histo_fit/fusion.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/fusion2.root", "RECREATE");
   newfile->cd();
   Result_tree.Write();
   newfile->Close();
@@ -1000,7 +1163,7 @@ void fusion() {
 
 int main(int argc, char const *argv[]){
   for(int i = 0; i<argc; i++){
-    if (std::string(argv[i]) == "-XW" || std::string(argv[i]) =="-MW" || std::string(argv[i]) =="-GV"){
+    if (std::string(argv[i]) == "-XW" || std::string(argv[i]) =="-MWFR" || std::string(argv[i]) =="-MWIT" || std::string(argv[i]) =="-GV"){
       Fit_Gain_Simu(argv[i]);
       if(std::string(argv[i]) == "--distrib" || std::string(argv[i]) =="-d"){
         distrib("roofit");
