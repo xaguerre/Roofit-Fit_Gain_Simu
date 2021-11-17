@@ -310,11 +310,11 @@ int* om_chooser(string om){
   int* lim = new int[2];
   if(om == "-MWIT" || om == "-1"){
     lim[0] = 0;
-    lim[1] = 259;
+    lim[1] = 260;
   }
   if(om == "-MWFR" || om == "-2"){
     lim[0] = 260;
-    lim[1] = 519;
+    lim[1] = 520;
   }
   if(om == "-XW" || om == "-3"){
     lim[0] = 520;
@@ -456,7 +456,7 @@ void Fit_Gain_Simu(string wall) {
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
   float deadt;
-  TFile *newfile = new TFile("histo_fit/fit_fr.root", "RECREATE");
+  TFile *newfile = new TFile(Form("histo_fit/fit_%s.root", wall.c_str()), "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -494,7 +494,7 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  // for (int om = 260; om < 520; om++)
+  // for (int om = 0; om < 260; om++)
   for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
@@ -534,6 +534,7 @@ void Fit_Gain_Simu(string wall) {
     for (int gain_count = 0; gain_count <150; gain_count++) {
       std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
       if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
+        spectre_om = spectre_charge_full(om);
 
         gain = (gain_bin_min + gain_bin_width*(gain_count-1));
         std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
@@ -564,7 +565,6 @@ void Fit_Gain_Simu(string wall) {
         param1 = rootab[1];
         param2 = rootab[2];
         param3 = rootab[3];
-
         deadt = dead_time(om, bin);
         delete mc0;
         delete mc1;
@@ -576,26 +576,24 @@ void Fit_Gain_Simu(string wall) {
 
         mc0->Scale(spectre_om->Integral()*param1*int_full_mc0/int_cut_mc0);
         om_counting_Tl = mc0->Integral();
-        eff_Tl = get_om_eff("Tl", om);
+        eff_Tl = get_om_eff("Tl_208", om);
         om_flux_Tl = (mc0->Integral()*deadt)/(902*eff_Tl*250000);
         mc1->Scale(spectre_om->Integral()*param2*int_full_mc1/int_cut_mc1);
         om_counting_Bi = mc1->Integral();
-        eff_Bi = get_om_eff("Bi", om);
+        eff_Bi = get_om_eff("Bi_214", om);
         om_flux_Bi = (mc1->Integral()*deadt)/(902*eff_Bi*250000);
         mc2->Scale(spectre_om->Integral()*param3*int_full_mc2/int_cut_mc2);
         om_counting_K = mc2->Integral();
-        eff_K = get_om_eff("K", om);
+        eff_K = get_om_eff("K_40", om);
         om_flux_K = (mc2->Integral()*deadt)/(902*eff_K*250000);
 
         Result_tree.Fill();
-
         delete mc0;
         delete mc1;
         delete mc2;
+        delete spectre_om;
       }
     }
-    delete spectre_om;
-
   }
   newfile->cd();
   Result_tree.Write();
@@ -1168,9 +1166,6 @@ int main(int argc, char const *argv[]){
       if(std::string(argv[i]) == "--distrib" || std::string(argv[i]) =="-d"){
         distrib("roofit");
       }
-    }
-    else{
-      Fit_Gain_Simu("FULL");
     }
   }
   return 0;
