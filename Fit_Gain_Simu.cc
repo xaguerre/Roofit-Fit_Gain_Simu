@@ -65,6 +65,17 @@ void Load_spectre(){
   return;
 }
 
+void test()
+{
+
+  for(float gain = gain_bin_min; gain<= gain_bin_max; gain+= gain_bin_width) {
+    std::cout << "gain = " << gain  << " bin = " << gain/gain_bin_width - 40 <<'\n';
+  }
+  // for (float eres = eres_bin_min; eres<= eres_bin_max; eres+= eres_bin_width) {
+  //   std::cout << "eres = " << eres << " bin = " << eres/eres_bin_width - 27 <<'\n';
+  // }
+}
+
 TH1D* spectre_charge_full(int om_number){
   TH1D* spectre_charge = charge_spectre->ProjectionY(Form("charge%03d",om_number), om_number+1, om_number+1);
   return spectre_charge;
@@ -112,7 +123,6 @@ void charge_to_ampl() {
     coef = amplitude_charge->GetMean();
     om = i;
     Result_tree.Fill();
-    return;
     delete amplitude_charge;
   }
 
@@ -494,8 +504,8 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  // for (int om = 0; om < 260; om++)
-  for (int om = borne[0]; om < borne[1]; om = om +1)
+  for (int om = 1; om < 712; om++)
+  // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
@@ -531,7 +541,7 @@ void Fit_Gain_Simu(string wall) {
     om_number = om;
     int eres = eres_chooser(om);
     int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
-    for (int gain_count = 0; gain_count <150; gain_count++) {
+    for (int gain_count = 40; gain_count <41; gain_count++) {
       std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
       if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
         spectre_om = spectre_charge_full(om);
@@ -543,6 +553,15 @@ void Fit_Gain_Simu(string wall) {
         TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
         TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
         int bin = gain*1024/200000.0;
+
+        if (om == 570) {
+          delete spectre_om;
+          TFile *tfile = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_611_570.root", "READ");
+          gROOT->cd();
+          TH2F* charge_spectre_570 = (TH2F*)tfile->Get("histo_pm_charge");
+          TH1D* spectre_om = charge_spectre_570->ProjectionY("charge570", 571, 571);
+        }
+
 
         int_full_mc0 = mc0->Integral();
         int_full_mc1 = mc2->Integral();
@@ -566,16 +585,23 @@ void Fit_Gain_Simu(string wall) {
         param2 = rootab[2];
         param3 = rootab[3];
         deadt = dead_time(om, bin);
+        if (deadt < 1) {
+          deadt = 1;
+        }
         delete mc0;
         delete mc1;
         delete mc2;
 
-        mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
-        mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+        mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);
+        mc0->Draw();
+        mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);
         mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
 
         mc0->Scale(spectre_om->Integral()*param1*int_full_mc0/int_cut_mc0);
         om_counting_Tl = mc0->Integral();
+        std::cout << "om_counting = " << om_counting_Tl << '\n';
+        mc0->Draw();
+        return;
         eff_Tl = get_om_eff("Tl_208", om);
         om_flux_Tl = (mc0->Integral()*deadt)/(902*eff_Tl*250000);
         mc1->Scale(spectre_om->Integral()*param2*int_full_mc1/int_cut_mc1);
@@ -602,7 +628,7 @@ void Fit_Gain_Simu(string wall) {
 }
 
 void distrib(string name) {
-  TFile *eff_file = new TFile(Form("histo_fit/%s.root", name.c_str()), "READ");
+  TFile *eff_file = new TFile(Form("histo_fit/run 611/%s.root", name.c_str()), "READ");
   // std::ofstream outFile("Best_Khi2.txt");
   int om_number =0;
   double Chi2, om_counting_Tl, om_counting_Bi, om_counting_K, counting_Tl, counting_Bi, counting_K, effTl, effBi, effK, eff_Tl, eff_Bi, eff_K;
