@@ -411,7 +411,7 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   can->SetLogy();
   TLatex l;
   l.SetTextFont(40);
-  l.DrawLatex(60000, 5000, Form("Khi2/NDF = %.3f",rootab[4]));
+  l.DrawLatex(60000, 5000, Form("Khi2/NDF = %.2f",rootab[4]));
   // l->DrawLatex(60000, 3000, Form("loglikelihood = %f",rootab[0]));
   // TLine* xline = new TLine(58000, 2500, 100000, 2500);
   // xline->SetLineWidth(2);
@@ -420,7 +420,7 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   // yline->SetLineWidth(2);
   // yline->Draw();
 
-  can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
+  can->SaveAs(Form("OM_fit/full_gain/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d_Khi2_%f.png", om, eres, gain, bin, rootab[4]));
   // result1->Print("v");
   // result1->Print();
   rootab[0] = result1->minNll();
@@ -504,8 +504,8 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  for (int om = 1; om < 712; om++)
-  // for (int om = borne[0]; om < borne[1]; om = om +1)
+  // for (int om = 0; om < 712; om++)
+  for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
@@ -534,14 +534,14 @@ void Fit_Gain_Simu(string wall) {
       mean_erf = charge_valeur_fit[om];
     }
     else{
-      mean_erf = 1.0/22000;
+      mean_erf = 1.0/19000;
       min = 0.8;
-      max = 1.8;
+      max = 1.5;
     }
     om_number = om;
     int eres = eres_chooser(om);
     int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
-    for (int gain_count = 40; gain_count <41; gain_count++) {
+    for (int gain_count = 0; gain_count <150; gain_count++) {
       std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
       if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
         spectre_om = spectre_charge_full(om);
@@ -591,24 +591,21 @@ void Fit_Gain_Simu(string wall) {
         delete mc0;
         delete mc1;
         delete mc2;
-
+        delete spectre_om;
         mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);
-        mc0->Draw();
         mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);
         mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
+        spectre_om = spectre_charge_full(om);
 
-        mc0->Scale(spectre_om->Integral()*param1*int_full_mc0/int_cut_mc0);
+        mc0->Scale((param1/int_cut_mc0)*spectre_om->Integral());
         om_counting_Tl = mc0->Integral();
-        std::cout << "om_counting = " << om_counting_Tl << '\n';
-        mc0->Draw();
-        return;
         eff_Tl = get_om_eff("Tl_208", om);
         om_flux_Tl = (mc0->Integral()*deadt)/(902*eff_Tl*250000);
-        mc1->Scale(spectre_om->Integral()*param2*int_full_mc1/int_cut_mc1);
+        mc1->Scale(spectre_om->Integral()*param2/int_cut_mc1);
         om_counting_Bi = mc1->Integral();
         eff_Bi = get_om_eff("Bi_214", om);
         om_flux_Bi = (mc1->Integral()*deadt)/(902*eff_Bi*250000);
-        mc2->Scale(spectre_om->Integral()*param3*int_full_mc2/int_cut_mc2);
+        mc2->Scale(spectre_om->Integral()*param3/int_cut_mc2);
         om_counting_K = mc2->Integral();
         eff_K = get_om_eff("K_40", om);
         om_flux_K = (mc2->Integral()*deadt)/(902*eff_K*250000);
@@ -627,8 +624,167 @@ void Fit_Gain_Simu(string wall) {
   std::cout << "good end" << '\n';
 }
 
+
+void Fit_flux() {
+  LoadMC();
+  Load_spectre();
+  Load_dead_spectre();
+  TH1::SetDefaultSumw2();
+
+  double logL, Chi2, param1, param2, param3, om_counting_Tl, om_counting_Bi, om_counting_K, eff_Tl, eff_Bi, eff_K;
+  double int_cut_mc0, int_cut_mc1, int_cut_mc2, int_full_mc0, int_full_mc1, int_full_mc2;
+  float gain, eres = 0;
+  int om_number = 0;
+  double mean_erf = 0;
+  double om_flux_Tl, om_flux_Bi, om_flux_K;
+  int lim =0;
+  float deadt;
+  double test;
+
+  TFile *gainfile = new TFile("histo_fit/distrib_fit_full.root", "READ");
+  TTree* tree = (TTree*)gainfile->Get("Result_tree");
+  tree->SetBranchStatus("*",0);
+  tree->SetBranchStatus("gain",1);
+  tree->SetBranchAddress("gain", &test);
+
+  double gain_tab[712];
+  for (int i = 0; i < tree->GetEntries(); i++) {
+    tree->GetEntry(i);
+    gain_tab[i] = test;
+  }
+  TFile *newfile = new TFile("histo_fit/fit_flux.root", "RECREATE");
+  TTree Result_tree("Result_tree","");
+  Result_tree.Branch("logL", &logL);
+  Result_tree.Branch("Chi2", &Chi2);
+  Result_tree.Branch("param1", &param1);
+  Result_tree.Branch("param2", &param2);
+  Result_tree.Branch("param3", &param3);
+  Result_tree.Branch("gain", &gain);
+  Result_tree.Branch("eres", &eres);
+  Result_tree.Branch("om_number", &om_number);
+  Result_tree.Branch("om_flux_Tl", &om_flux_Tl);
+  Result_tree.Branch("om_flux_Bi", &om_flux_Bi);
+  Result_tree.Branch("om_flux_K", &om_flux_K);
+  Result_tree.Branch("lim", &lim);
+  Result_tree.Branch("deadt", &deadt);
+  Result_tree.Branch("om_counting_Tl", &om_counting_Tl);
+  Result_tree.Branch("om_counting_Bi", &om_counting_Bi);
+  Result_tree.Branch("om_counting_K", &om_counting_K);
+  Result_tree.Branch("eff_Tl", &eff_Tl);
+  Result_tree.Branch("eff_Bi", &eff_Bi);
+  Result_tree.Branch("eff_K", &eff_K);
+
+  std::ifstream  charge("gain_data/Resultat_mean_energie_charge_total.txt");
+  float charge_valeur_fit [712];
+  memset(charge_valeur_fit, -1, 712*sizeof(float));
+  int charge_om_num;
+  while (charge >> charge_om_num)
+  {
+    charge >> charge_valeur_fit[charge_om_num];
+  }
+  double* rootab = new double[5];
+
+  for (int om = 0; om < 712; om++)
+  {
+    TH3D* MC_Tl_208 = MC_chooser(om, 0);
+    TH3D* MC_Bi_214 = MC_chooser(om, 1);
+    TH3D* MC_K_40 = MC_chooser(om, 2);
+    TH1D* spectre_om = NULL;
+    spectre_om = spectre_charge_full(om);
+
+    if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
+      delete spectre_om;
+      om++;
+      spectre_om = spectre_charge_full(om);
+    }
+
+    om_number = om;
+    int eres = eres_chooser(om);
+    int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
+      spectre_om = spectre_charge_full(om);
+      gain = gain_tab[om];
+      int gain_count =((gain - 10000)/250) + 1;
+      TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
+      TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+      TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
+      int bin = gain*1024/200000.0;
+
+      if (om == 570) {
+        delete spectre_om;
+        TFile *tfile = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_611_570.root", "READ");
+        gROOT->cd();
+        TH2F* charge_spectre_570 = (TH2F*)tfile->Get("histo_pm_charge");
+        TH1D* spectre_om = charge_spectre_570->ProjectionY("charge570", 571, 571);
+      }
+
+      int_full_mc0 = mc0->Integral();
+      int_full_mc1 = mc2->Integral();
+      int_full_mc2 = mc2->Integral();
+
+      for (int i = 0; i < bin; i++) {
+        mc0->SetBinContent(i, 0);
+        mc1->SetBinContent(i, 0);
+        mc2->SetBinContent(i, 0);
+        spectre_om->SetBinContent(i, 0);
+      }
+
+      int_cut_mc0 = mc0->Integral();
+      int_cut_mc1 = mc1->Integral();
+      int_cut_mc2 = mc2->Integral();
+
+      roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
+      logL = rootab[0];
+      Chi2 = rootab[4];
+      param1 = rootab[1];
+      param2 = rootab[2];
+      param3 = rootab[3];
+      deadt = dead_time(om, bin);
+      if (deadt < 1) {
+        deadt = 1;
+      }
+      delete mc0;
+      delete mc1;
+      delete mc2;
+      delete spectre_om;
+      mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);
+      mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);
+      mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
+      spectre_om = spectre_charge_full(om);
+
+      mc0->Scale((param1/int_full_mc0)*spectre_om->Integral());
+      om_counting_Tl = mc0->Integral();
+      eff_Tl = get_om_eff("Tl_208", om);
+      om_flux_Tl = (mc0->Integral()*deadt)/(902*eff_Tl*250000);
+      mc1->Scale(spectre_om->Integral()*param2/int_full_mc1);
+      om_counting_Bi = mc1->Integral();
+      eff_Bi = get_om_eff("Bi_214", om);
+      om_flux_Bi = (mc1->Integral()*deadt)/(902*eff_Bi*250000);
+      mc2->Scale(spectre_om->Integral()*param3/int_full_mc2);
+      om_counting_K = mc2->Integral();
+      eff_K = get_om_eff("K_40", om);
+      om_flux_K = (mc2->Integral()*deadt)/(902*eff_K*250000);
+      spectre_om->Draw();
+      mc0->Draw("same");
+      mc1->Draw("same");
+      mc2->Draw("same");
+
+      Result_tree.Fill();
+      delete mc0;
+      delete mc1;
+      delete mc2;
+      delete spectre_om;
+
+
+  }
+  newfile->cd();
+  Result_tree.Write();
+  newfile->Close();
+  std::cout << "good end" << '\n';
+}
+
+
 void distrib(string name) {
-  TFile *eff_file = new TFile(Form("histo_fit/run 611/%s.root", name.c_str()), "READ");
+  TFile *eff_file = new TFile(Form("histo_fit/%s.root", name.c_str()), "READ");
   // std::ofstream outFile("Best_Khi2.txt");
   int om_number =0;
   double Chi2, om_counting_Tl, om_counting_Bi, om_counting_K, counting_Tl, counting_Bi, counting_K, effTl, effBi, effK, eff_Tl, eff_Bi, eff_K;
