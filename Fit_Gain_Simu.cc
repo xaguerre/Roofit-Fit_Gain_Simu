@@ -9,6 +9,7 @@
 #include "RooRealSumPdf.h"
 #include "RooParamHistFunc.h"
 #include "RooHistConstraint.h"
+#include "RooBinSamplingPdf.h"
 #include "RooProdPdf.h"
 #include "RooPlot.h"
 #include "TCanvas.h"
@@ -65,8 +66,7 @@ void Load_spectre(){
   return;
 }
 
-void test()
-{
+void test(){
 
   for(float gain = gain_bin_min; gain<= gain_bin_max; gain+= gain_bin_width) {
     std::cout << "gain = " << gain  << " bin = " << gain/gain_bin_width - 40 <<'\n';
@@ -79,6 +79,10 @@ void test()
 TH1D* spectre_charge_full(int om_number){
   TH1D* spectre_charge = charge_spectre->ProjectionY(Form("charge%03d",om_number), om_number+1, om_number+1);
   return spectre_charge;
+  // TFile *file = new TFile("Histo_simu_new/Histo_mystere.root", "READ");
+  // gROOT->cd();
+  // TH1D* spectre_charge = (TH1D*)file->Get("MC");
+  // return spectre_charge;
 }
 
 void Load_dead_spectre(){
@@ -344,18 +348,21 @@ int* om_chooser(string om){
 double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0, TH1D* mc1, TH1D* mc2, double *rootab, int bin){
   const float start_x = spectre_om->GetXaxis()->GetBinUpEdge(bin);
 
-  mc0->Scale(1/mc0->Integral());
-  mc1->Scale(1/mc1->Integral());
-  mc2->Scale(1/mc2->Integral());
-
   RooRealVar x("x", "x", 10000, 130000);
   RooDataHist Tl("Tl", "Tl", x, Import(*mc0));
   RooDataHist Bi("Bi", "Bi", x, Import(*mc1));
   RooDataHist K("K", "K", x, Import(*mc2));
 
+  RooRealVar RooTl("RooTl", "Tl", 0.2, 0.1, 0.4);
+  RooRealVar RooBi("RooBi", "Bi", 0.5, 0.3, 0.6);
+  RooRealVar RooK("RooK", "K", 0.3, 0.2, 0.4);
+
   RooHistPdf Tl_pdf ("Tl_pdf", "", x, Tl);
   RooHistPdf Bi_pdf ("Bi_pdf", "", x, Bi);
   RooHistPdf K_pdf ("K_pdf", "", x, K);
+  RooBinSamplingPdf Tl_spdf ("Tl_spdf", "", x, Tl_pdf);
+  RooBinSamplingPdf Bi_spdf ("Bi_spdf", "", x, Bi_pdf);
+  RooBinSamplingPdf K_spdf ("K_spdf", "", x, K_pdf);
 
   RooDataHist spectre_data("spectre_data", "spectre_data", x, Import(*spectre_om));
 
@@ -363,80 +370,80 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   RooParamHistFunc p_ph_Bi("p_ph_Bi","p_ph_Bi",Bi);
   RooParamHistFunc p_ph_K("p_ph_K","p_ph_K",K);
 
-  RooRealVar RooTl("RooTl", "Tl", 0.2, 0.1, 0.4);
-  RooRealVar RooBi("RooBi", "Bi", 0.5, 0.3, 0.6);
-  RooRealVar RooK("RooK", "K", 0.3, 0.2, 0.4);
-
-  RooRealSumPdf sum_simu("sum_simu", "sum_simu",
-  RooArgList(p_ph_Tl, p_ph_Bi, p_ph_K),
-  RooArgList(RooTl,RooBi,RooK),
-  false);
+  RooAddPdf sum_simu("sum_simu", "sum_simu",
+  RooArgList(Tl_spdf, Bi_spdf, K_spdf),
+  RooArgList(RooTl, RooBi));
 
   TCanvas* can = new TCanvas;
   can->cd();
   auto frame = x.frame(Title("Fit gain simu"));
 
   spectre_data.plotOn(frame, DataError(RooAbsData::SumW2), DrawOption("P"));
-  RooFitResult *result1 = sum_simu.fitTo(spectre_data, PrintLevel(-1), SumW2Error(true), Range(start_x,80000), Save(), IntegrateBins(-1), Minimizer("Minuit"));
+  RooFitResult *result1 = sum_simu.fitTo(spectre_data, PrintLevel(3), SumW2Error(true), Range(start_x, 130000), Save(), IntegrateBins(0), Minos(true));
   sum_simu.setStringAttribute("fitrange", nullptr);
 
   // Plot data to enable automatic determination of model0 normalisation:
   sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
   spectre_data.plotOn(frame, DataError(RooAbsData::SumW2), DrawOption("P"));
 
-
-  // can->SetLogy();
-
   sum_simu.plotOn(frame, LineColor(kRed), Name("sum_curve"));
 
-
-  rootab[4] = frame->chiSquare();
-
   // Plot model components
-  sum_simu.plotOn(frame, Components(p_ph_Tl), LineColor(kGreen), Name("Tl_curve"));
-  sum_simu.plotOn(frame, Components(p_ph_Bi), LineColor(kYellow), Name("Bi_curve"));
-  sum_simu.plotOn(frame, Components(p_ph_K), LineColor(kBlue), Name("K_curve"));
-
+  sum_simu.plotOn(frame, Components(Tl_spdf), LineColor(kGreen), Name("Tl_curve"));
+  sum_simu.plotOn(frame, Components(Bi_spdf), LineColor(kYellow), Name("Bi_curve"));
+  sum_simu.plotOn(frame, Components(K_spdf), LineColor(kBlue), Name("K_curve"));
+  sum_simu.paramOn(frame);
 
   double Tl_int = RooTl.getVal();
   double Bi_int = RooBi.getVal();
-  double K_int = RooK.getVal();
+  double K_int = 1- Tl_int -Bi_int;
   double int_tot = Tl_int + Bi_int + K_int;
-  double Tl_int_error = RooTl.getPropagatedError(*result1);
-  double Bi_int_error = RooBi.getPropagatedError(*result1);
-  double K_int_error = RooK.getPropagatedError(*result1);
-  double int_error_tot = Tl_int_error + Bi_int_error + K_int_error;
+  double Tl_int_error = RooTl.getPropagatedError(*result1, x);
+  double Bi_int_error = RooBi.getPropagatedError(*result1, x);
+  double K_int_error = sqrt(pow((Bi_int_error), 2) + pow((Tl_int_error), 2));
   std::cout << "RooTl = " << Tl_int << " +- " << Tl_int_error << '\n';
   std::cout << "RooBi = " << Bi_int << " +- " << Bi_int_error << '\n';
   std::cout << "RooK = " << K_int << " +- " << K_int_error << '\n';
-  std::cout << "int_tot = " << int_tot << '\n';
-
   frame->GetYaxis()->UnZoom();
   frame->GetYaxis()->SetTitle("n events");
   frame->GetXaxis()->SetTitle("charge (u.a)");
   frame ->Draw();
   can->SetLogy();
-  TLatex l;
-  l.SetTextFont(40);
-  l.DrawLatex(90000, 80, Form("Khi2/NDF = %.2f",rootab[4]));
+
 
   // can->SaveAs(Form("OM_fit/full_gain/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, eres, gain, bin));
   can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
 
   rootab[0] = result1->minNll();
-  rootab[1] = Tl_int/int_tot;
-  rootab[2] = Bi_int/int_tot;
-  rootab[3] = K_int/int_tot;
-  rootab[5] = sqrt(pow((Tl_int_error/int_tot), 2) + pow((Tl_int*int_error_tot)/pow(int_tot, 2), 2));
-  rootab[6] = sqrt(pow((Bi_int_error/int_tot), 2) + pow((Bi_int*int_error_tot)/pow(int_tot, 2), 2));
-  rootab[7] = sqrt(pow((K_int_error/int_tot), 2) + pow((K_int*int_error_tot)/pow(int_tot, 2), 2));
+  rootab[1] = Tl_int;
+  rootab[2] = Bi_int;
+  rootab[3] = K_int;
+  rootab[5] = Tl_int_error;
+  rootab[6] = Bi_int_error;
+  rootab[7] = K_int_error;
+  std::cout << "RooTl = " << rootab[1] << " +- " << rootab[5] << '\n';
+  std::cout << "RooBi = " << rootab[2] << " +- " << rootab[6] << '\n';
+  std::cout << "RooK = " << rootab[3] << " +- " << rootab[7] << '\n';
+  std::cout << "sum = " << rootab[3] + rootab[1] + rootab[2] << '\n';
 
-  // TH1* h_data = spectre_data.createHistogram("h_data",x, Binning(1024,0,200000)) ;
-  // TH1* h_fit = sum_simu.createHistogram("h_fit",x, Binning(1024,0,200000)) ;
-  // double kolmo = h_data->KolmogorovTest(h_fit);
-  // double kolmo = 0;
-  // rootab[5] =kolmo;
 
+
+  TH1* h_data = spectre_data.createHistogram("h_data",x, Binning(1024,0,200000)) ;
+  TH1* h_fit = sum_simu.createHistogram("h_fit",x, Binning(1024,0,200000)) ;
+
+  RooDataHist binnedData_hist("binnedData", "binnedData", x, Import(*h_data));
+
+
+  RooAbsReal *new_chi2 = sum_simu.createChi2(binnedData_hist, Range(start_x, 130000), IntegrateBins(0), DataError(RooAbsData::Poisson), Minos(true),  SumW2Error(true));
+  rootab[4] = new_chi2->getVal()/98.;
+  std::cout << "/* message */" << rootab[4] << '\n';
+  TLatex l;
+  l.SetTextFont(40);
+  l.DrawLatex(90000, 80, Form("Khi2/NDF = %.2f",rootab[4]));
+
+  delete new_chi2;
+  delete h_fit;
+  delete h_data;
   delete can;
   delete frame;
   delete result1;
@@ -474,7 +481,7 @@ void Fit_Gain_Simu(string wall) {
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
   float deadt;
-  TFile *newfile = new TFile(Form("histo_fit/test_rvalue.root", wall.c_str()), "RECREATE");
+  TFile *newfile = new TFile(Form("histo_fit/test_new_roofit%s.root", wall.c_str()), "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -513,7 +520,7 @@ void Fit_Gain_Simu(string wall) {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  for (int om = 616; om < 617; om++)
+  for (int om = 0; om < 712; om = om + 50)
   // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
@@ -566,7 +573,8 @@ void Fit_Gain_Simu(string wall) {
 
         gain = (gain_bin_min + gain_bin_width*(gain_count-1));
         std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
-
+        // gain_count = 46;
+        // eres_count = 5;
         TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
         TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
         TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
@@ -586,8 +594,11 @@ void Fit_Gain_Simu(string wall) {
 
         for (int i = 0; i < bin; i++) {
           mc0->SetBinContent(i, 0);
+          mc0->SetBinError(i, 0);
           mc1->SetBinContent(i, 0);
+          mc2->SetBinError(i, 0);
           mc2->SetBinContent(i, 0);
+          mc2->SetBinError(i, 0);
           spectre_om->SetBinContent(i, 0);
           spectre_om->SetBinError(i, 0);
         }
@@ -597,7 +608,6 @@ void Fit_Gain_Simu(string wall) {
         int_cut_mc2 = mc2->Integral();
 
         roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
-        return;
         logL = rootab[0];
         Chi2 = rootab[4];
         param1 = rootab[1];
@@ -667,7 +677,7 @@ void Fit_flux() {
     tree->GetEntry(i);
     gain_tab[i] = test;
   }
-  TFile *newfile = new TFile("histo_fit/fit_0MeV.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/fit_test.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -706,7 +716,7 @@ void Fit_flux() {
   double* eff = new double[2];
   double* rootab = new double[8];
   double facteur;
-  for (int om = 0; om < 712; om++)
+  for (int om = 55; om < 712; om++)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
@@ -809,6 +819,7 @@ void Fit_flux() {
     double sp_om_cut = spectre_om->Integral();
 
     roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
+    return;
     logL = rootab[0];
     Chi2 = rootab[4];
     param1 = rootab[1];
@@ -833,7 +844,7 @@ void Fit_flux() {
     mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
     spectre_om = spectre_charge_full(om);
 
-    for (int i = 0; i < bin*0; i++) {
+    for (int i = 0; i < bin; i++) {
       mc0->SetBinContent(i, 0);
       mc1->SetBinContent(i, 0);
       mc2->SetBinContent(i, 0);
@@ -986,7 +997,6 @@ void distrib(string name) {
 }
 
 void histo_mystere(){
-
   TFile *histo_file_Tl = new TFile("Histo_simu_new/MC_simu_Tl_208_recOC_new_eres_53_gain_221_OC_MW8.root", "READ");
   histo_file_Tl->cd();
   TH3D* MC_Tl_208 = (TH3D*)histo_file_Tl->Get("MC_simu_Tl_208_recOC_new_ubc");
