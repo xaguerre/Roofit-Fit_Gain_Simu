@@ -157,41 +157,41 @@ void LoadMC() {
   TFile *histo_file_Tl_MW5 = new TFile("Histo_simu_new/MC_simu_Tl_208_10G_eres_53_gain_221_OC_MW5.root", "READ");
   histo_file_Tl_MW5->cd();
   MC_MW5[0] = (TH3D*)histo_file_Tl_MW5->Get("MC__MW5Simu_Tl_208_10G_ubc");
-  MC_MW5[0]->RebinZ(4);
+  // MC_MW5[0]->RebinZ(4);
   TFile *histo_file_Bi_MW5 = new TFile("Histo_simu_new/MC_simu_Bi_214_10G_eres_53_gain_221_OC_MW5.root", "READ");
   histo_file_Bi_MW5->cd();
   MC_MW5[1] = (TH3D*)histo_file_Bi_MW5->Get("MC__MW5Simu_Bi_214_10G_ubc");
-  MC_MW5[1]->RebinZ(4);
+  // MC_MW5[1]->RebinZ(4);
   TFile *histo_file_K_MW5 = new TFile("Histo_simu_new/MC_simu_K_40_10G_eres_53_gain_221_OC_MW5.root", "READ");
   histo_file_K_MW5->cd();
   MC_MW5[2] = (TH3D*)histo_file_K_MW5->Get("MC__MW5Simu_K_40_10G_ubc");
-  MC_MW5[2]->RebinZ(4);
+  // MC_MW5[2]->RebinZ(4);
 
   TFile *histo_file_TL_XW = new TFile("Histo_simu_new/MC_simu_Tl_208_10G_eres_53_gain_221_OC_XW.root", "READ");
   histo_file_TL_XW->cd();
   MC_XW[0] = (TH3D*)histo_file_TL_XW->Get("MC_XW_Simu_Tl_208_10G_ubc");
-  MC_XW[0]->RebinZ(4);
+  // MC_XW[0]->RebinZ(4);
   TFile *histo_file_Bi_XW = new TFile("Histo_simu_new/MC_simu_Bi_214_10G_eres_53_gain_221_OC_XW.root", "READ");
   histo_file_Bi_XW->cd();
   MC_XW[1] = (TH3D*)histo_file_Bi_XW->Get("MC_XW_Simu_Bi_214_10G_ubc");
-  MC_XW[1]->RebinZ(4);
+  // MC_XW[1]->RebinZ(4);
   TFile *histo_file_K_XW = new TFile("Histo_simu_new/MC_simu_K_40_10G_eres_53_gain_221_OC_XW.root", "READ");
   histo_file_K_XW->cd();
   MC_XW[2] = (TH3D*)histo_file_K_XW->Get("MC_XW_Simu_K_40_10G_ubc");
-  MC_XW[2]->RebinZ(4);
+  // MC_XW[2]->RebinZ(4);
 
   TFile *histo_file_Tl_GV = new TFile("Histo_simu_new/MC_simu_Tl_208_10G_eres_53_gain_221_OC_GV.root", "READ");
   histo_file_Tl_GV->cd();
   MC_GV[0] = (TH3D*)histo_file_Tl_GV->Get("MC_GV_Simu_Tl_208_10G_ubc");
-  MC_GV[0]->RebinZ(4);
+  // MC_GV[0]->RebinZ(4);
   TFile *histo_file_Bi_GV = new TFile("Histo_simu_new/MC_simu_Bi_214_10G_eres_53_gain_221_OC_GV.root", "READ");
   histo_file_Bi_GV->cd();
   MC_GV[1] = (TH3D*)histo_file_Bi_GV->Get("MC_GV_Simu_Bi_214_10G_ubc");
-  MC_GV[1]->RebinZ(4);
+  // MC_GV[1]->RebinZ(4);
   TFile *histo_file_K_GV = new TFile("Histo_simu_new/MC_simu_K_40_10G_eres_53_gain_221_OC_GV.root", "READ");
   histo_file_K_GV->cd();
   MC_GV[2] = (TH3D*)histo_file_K_GV->Get("MC_GV_Simu_K_40_10G_ubc");
-  MC_GV[2]->RebinZ(4);
+  // MC_GV[2]->RebinZ(4);
 }
 
 float dead_time(int om, float gain){
@@ -400,16 +400,21 @@ double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0
 
 
   RooNLLVar RooLogL("LogL", "LogL", sum_simu, spectre_data);
-  RooChi2Var RooChi2("Chi2", "Chi2", sum_simu, spectre_data);
-  std::cout << "test = " << RooChi2.getVal()/(nbin - 2) << '\n';
+  RooChi2Var RooChi2("Chi2", "Chi2", sum_simu, spectre_data);   // create the variance
+  std::cout << "test1 = " << RooChi2.getVal()/(nbin - 2) << '\n';
 
-  RooMinimizer *miniLog = new RooMinimizer(RooLogL);
+  // RooMinimizer *miniLog = new RooMinimizer(RooLogL);
+  // double ConvLog = miniLog->minimize("Minuit", "Migrad");
+  //
+  //   std::cout << "test2 = " << RooChi2.getVal()/(nbin - 2) << '\n';
+
   RooMinimizer *miniChi = new RooMinimizer(RooChi2);
 
-  double ConvLog = miniLog->minimize("Minuit", "Migrad");
-  double ConvChi = miniChi->minimize("Minuit", "Migrad");
+
+  double ConvChi = miniChi->minimize("Minuit", "Migrad");  //   Create the Chi2/LogL
 
   double Chi2 = RooChi2.getVal()/(nbin - 2);
+  std::cout << "test3 = " << Chi2 << '\n';
 
   TCanvas* can = new TCanvas;
   can->cd();
@@ -419,7 +424,6 @@ double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0
 
   // TH1* test3 = test.createHistogram("", RooTl, Binning(100,0,1));
   // test3->Draw();
-  std::cout << "test = " << Chi2 << '\n';
 
   sum_simu.plotOn(frame, FillColor(0));
   spectre_data.plotOn(frame, DataError(RooAbsData::SumW2), DrawOption("P"));
@@ -429,7 +433,7 @@ double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0
   sum_simu.plotOn(frame, Components(Bi_spdf), LineColor(kYellow), Name("Bi_curve"));
   sum_simu.plotOn(frame, Components(K_spdf), LineColor(kBlue), Name("K_curve"));
 
-  sum_simu.plotOn(frame, LineColor(kRed), Name("sum_curve"), Range(start_x, 130000), IntegrateBins(1));
+  sum_simu.plotOn(frame, LineColor(kRed), Name("sum_curve"), Range(start_x, 130000));
 
   double Tl_int = RooTl.getVal();
   double Bi_int = RooBi.getVal();
@@ -448,7 +452,6 @@ double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0
   can->SetLogy();
   // can->SaveAs("test.png");
 
-  // can->SaveAs(Form("OM_fit/full_gain/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, eres, gain, bin));
   rootab[0] = RooLogL.getVal();
   rootab[1] = Tl_int;
   rootab[2] = Bi_int;
@@ -461,13 +464,11 @@ double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0
   l.SetTextFont(40);
   l.DrawLatex(90000, 80, Form("Khi2/NDF = %.2f",rootab[4]));
   can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
-  // can->SaveAs("test.png");
-  //
 
   delete miniChi;
   delete can;
   delete frame;
-  delete miniLog;
+  // delete miniLog;
   return rootab;
 }
 
@@ -612,7 +613,7 @@ void Fit_Gain_Simu(string wall = "") {
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
   float deadt;
-  TFile *newfile = new TFile(Form("histo_fit/test_%s.root", wall.c_str()), "RECREATE");
+  TFile *newfile = new TFile(Form("histo_fit/fit_tot%s.root", wall.c_str()), "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -651,7 +652,7 @@ void Fit_Gain_Simu(string wall = "") {
   int* borne = new int[2];
   borne = om_chooser(wall);
 
-  for (int om = 1; om < 2; om++)
+  for (int om = 0; om < 712; om++)
   // for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
@@ -704,7 +705,7 @@ void Fit_Gain_Simu(string wall = "") {
 
         gain = (gain_bin_min + gain_bin_width*(gain_count-1));
         std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
-        // gain_count = 46;
+        // gain_count = 54;
         // eres_count = 5;
         TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
         TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
