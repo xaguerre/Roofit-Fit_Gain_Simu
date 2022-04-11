@@ -360,7 +360,17 @@ int* om_chooser(string om){
   return lim;
 }
 
-double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0, TH1D* mc1, TH1D* mc2, double *rootab, int bin){
+double events_counter(double &mean, float min, TH1D* spectre_om){
+  double frac = spectre_om->Integral((mean)*1024/200000, 1024)/spectre_om->Integral();
+  std::cout << "mean = " << (mean)*1024/200000 << '\n';
+  while (frac < 0.3) {
+    mean-= 250;
+    frac = spectre_om->Integral((mean)*1024/200000, 1024)/spectre_om->Integral();
+  }
+  return mean;
+}
+
+double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0, TH1D* mc1, TH1D* mc2, double *rootab, int bin){
   const float start_x = spectre_om->GetXaxis()->GetBinUpEdge(bin);
   int nbin = 0;
   for (int i = bin; i < spectre_om->GetNbinsX(); i++) {
@@ -472,116 +482,6 @@ double* roofitter2(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0
   return rootab;
 }
 
-
-
-double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0, TH1D* mc1, TH1D* mc2, double *rootab, int bin){
-  const float start_x = spectre_om->GetXaxis()->GetBinUpEdge(bin);
-  int nbin = 0;
-  for (int i = bin; i < spectre_om->GetNbinsX(); i++) {
-    if (spectre_om->GetBinContent(i) != 0) {
-      nbin++;
-    }
-  }
-  std::cout << "nbin = " << nbin << '\n';
-
-  RooRealVar x("x", "x", 10000, 130000);
-  x.setBins(615);
-  RooDataHist Tl("Tl", "Tl", x, Import(*mc0));
-  RooDataHist Bi("Bi", "Bi", x, Import(*mc1));
-  RooDataHist K("K", "K", x, Import(*mc2));
-
-  RooRealVar RooTl("RooTl", "Tl", 0.2, 0.1, 0.4);
-  RooRealVar RooBi("RooBi", "Bi", 0.5, 0.3, 0.6);
-  RooRealVar RooK("RooK", "K", 0.3, 0.2, 0.4);
-
-  RooHistPdf Tl_pdf ("Tl_pdf", "", x, Tl);
-  RooHistPdf Bi_pdf ("Bi_pdf", "", x, Bi);
-  RooHistPdf K_pdf ("K_pdf", "", x, K);
-  RooBinSamplingPdf Tl_spdf ("Tl_spdf", "", x, Tl_pdf);
-  RooBinSamplingPdf Bi_spdf ("Bi_spdf", "", x, Bi_pdf);
-  RooBinSamplingPdf K_spdf ("K_spdf", "", x, K_pdf);
-
-  RooDataHist spectre_data("spectre_data", "spectre_data", x, Import(*spectre_om));
-
-  RooParamHistFunc p_ph_Tl("p_ph_Tl","p_ph_Tl",Tl);
-  RooParamHistFunc p_ph_Bi("p_ph_Bi","p_ph_Bi",Bi);
-  RooParamHistFunc p_ph_K("p_ph_K","p_ph_K",K);
-
-  RooAddPdf sum_simu("sum_simu", "sum_simu",
-                      RooArgList(Tl_spdf, Bi_spdf, K_spdf),
-                      RooArgList(RooTl, RooBi));
-
-  TCanvas* can = new TCanvas;
-  can->cd();
-  auto frame = x.frame(Title("Fit gain simu"));
-
-  spectre_data.plotOn(frame, DataError(RooAbsData::SumW2), DrawOption("P"));
-  RooFitResult *result1 = sum_simu.fitTo(spectre_data, PrintLevel(-1), SumW2Error(true), DataError(RooAbsData::Poisson), Range(start_x, 130000), Save(), IntegrateBins(0), Minos("true"));
-  sum_simu.setStringAttribute("fitrange", nullptr);
-
-  // Plot data to enable automatic determination of model0 normalisation:
-  sum_simu.plotOn(frame, FillColor(0), VisualizeError(*result1));
-  spectre_data.plotOn(frame, DataError(RooAbsData::SumW2), DrawOption("P"));
-
-  // Plot model components
-  sum_simu.plotOn(frame, Components(Tl_spdf), LineColor(kGreen), Name("Tl_curve"));
-  sum_simu.plotOn(frame, Components(Bi_spdf), LineColor(kYellow), Name("Bi_curve"));
-  sum_simu.plotOn(frame, Components(K_spdf), LineColor(kBlue), Name("K_curve"));
-
-  sum_simu.plotOn(frame, LineColor(kRed), Name("sum_curve"));
-
-  double Tl_int = RooTl.getVal();
-  double Bi_int = RooBi.getVal();
-  double K_int = 1- Tl_int -Bi_int;
-  double int_tot = Tl_int + Bi_int + K_int;
-  double Tl_int_error = RooTl.getPropagatedError(*result1, x);
-  double Bi_int_error = RooBi.getPropagatedError(*result1, x);
-  double K_int_error = sqrt(pow((Bi_int_error), 2) + pow((Tl_int_error), 2));
-  std::cout << "RooTl = " << Tl_int << " +- " << Tl_int_error << '\n';
-  std::cout << "RooBi = " << Bi_int << " +- " << Bi_int_error << '\n';
-  std::cout << "RooK = " << K_int << " +- " << K_int_error << '\n';
-  frame->GetYaxis()->UnZoom();
-  frame->GetYaxis()->SetTitle("n events");
-  frame->GetXaxis()->SetTitle("charge (u.a)");
-  frame ->Draw();
-  can->SetLogy();
-
-
-  // return rootab;
-  // can->SaveAs(Form("OM_fit/full_gain/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, eres, gain, bin));
-
-  rootab[0] = result1->minNll();
-  rootab[1] = Tl_int;
-  rootab[2] = Bi_int;
-  rootab[3] = K_int;
-  rootab[5] = Tl_int_error;
-  rootab[6] = Bi_int_error;
-  rootab[7] = K_int_error;
-
-  TH1* h_data = spectre_data.createHistogram("h_data",x, Binning(256,0,200000)) ;
-  TH1* h_fit = sum_simu.createHistogram("h_fit",x, Binning(256,0,200000)) ;
-
-  RooDataHist binnedData_hist("binnedData", "binnedData", x, Import(*h_data));
-
-  RooAbsReal *new_chi2 = sum_simu.createChi2(binnedData_hist, Range(start_x, 130000), IntegrateBins(0), DataError(RooAbsData::Poisson), Minos(true),  SumW2Error(true));
-  rootab[4] = new_chi2->getVal()/(nbin - 2);
-  TLatex l;
-  l.SetTextFont(40);
-  l.DrawLatex(90000, 80, Form("Khi2/NDF = %.2f",rootab[4]));
-  return rootab;
-  can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
-  can->SaveAs("test.png");
-
-
-  delete new_chi2;
-  delete h_fit;
-  delete h_data;
-  delete can;
-  delete frame;
-  delete result1;
-  return rootab;
-}
-
 double* get_om_eff(string compo, int om, double *om_eff) {
   om_eff[0] = 0;
   om_eff[1] = 0;
@@ -599,7 +499,7 @@ double* get_om_eff(string compo, int om, double *om_eff) {
   return om_eff;
 }
 
-void Fit_Gain_Simu(string wall = "") {
+void Fit_Gain_Simu(string wall = "", int p = 0; std::vector<int> *om_vector = nullptr, std::vector<int> *param_value = nullptr) {
   LoadMC();
   Load_spectre();
   Load_dead_spectre();
@@ -613,7 +513,7 @@ void Fit_Gain_Simu(string wall = "") {
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
   float deadt;
-  TFile *newfile = new TFile(Form("histo_fit/fit_tot%s.root", wall.c_str()), "RECREATE");
+  TFile *newfile = new TFile(Form("histo_fit/fit_test%s.root", wall.c_str()), "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -650,10 +550,10 @@ void Fit_Gain_Simu(string wall = "") {
   float max = 1.15;
 
   int* borne = new int[2];
-  borne = om_chooser(wall);
+  // borne = om_chooser(wall);
 
-  for (int om = 0; om < 712; om++)
-  // for (int om = borne[0]; om < borne[1]; om = om +1)
+  for (int om = 285; om < 286; om++)
+  for (int om = borne[0]; om < borne[1]; om = om +1)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
@@ -663,6 +563,7 @@ void Fit_Gain_Simu(string wall = "") {
 
     if (om < 520) {
       if ((spectre_om->GetEntries() < 100) || (spectre_om->GetMean(1) < 1500)){
+        std::cout << "om " << om << " deleted"<< '\n';
         delete spectre_om;
         om++;
         spectre_om = spectre_charge_full(om);
@@ -678,29 +579,45 @@ void Fit_Gain_Simu(string wall = "") {
       }
       if (charge_valeur_fit[om] != -1){
         double *tab = om_gain_fit(om);
+        std::cout << tab[0] << '\n';
         if (tab[0] == 0 ) {
-          mean_erf = charge_valeur_fit[om];
+          mean_erf = 1/charge_valeur_fit[om];
         }
         else{
-          mean_erf = 1/tab[0];
+          mean_erf = tab[0];
         }
         delete tab;
       }
+      else{
+        mean_erf = 19000;
+        min = 0.7;
+        max = 1.2;
+      }
     }
     else if (om < 648 && om > 519) {
-      mean_erf = charge_valeur_fit[om];
+      mean_erf = 1/charge_valeur_fit[om];
     }
     else{
-      mean_erf = 1.0/19000;
+      mean_erf = 19000;
       min = 0.8;
       max = 1.3;
     }
+    std::cout << "mean erf = " << mean_erf<< '\n';
+    if (spectre_om->Integral((mean_erf)*1024/200000, 1024)/spectre_om->Integral() < 0.3) {
+      mean_erf = events_counter(mean_erf, min, spectre_om);
+      std::cout << "mean_erf = " << mean_erf << '\n';
+    }
+    // if (spectre_om->Integral(mean_erf, 1024) < 400) {
+    //   continue;
+    // }
+
+
     om_number = om;
     int eres = eres_chooser(om);
     int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
     for (int gain_count = 0; gain_count <150; gain_count++) {
       // std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
-      if ((1.0/(gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && (1.0/(gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
+      if (((gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && ((gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
         spectre_om = spectre_charge_full(om);
 
         gain = (gain_bin_min + gain_bin_width*(gain_count-1));
@@ -741,13 +658,14 @@ void Fit_Gain_Simu(string wall = "") {
         int_cut_mc1 = mc1->Integral();
         int_cut_mc2 = mc2->Integral();
 
-        roofitter2(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
+        roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
         logL = rootab[0];
         Chi2 = rootab[4];
         param1 = rootab[1];
         param2 = rootab[2];
         param3 = rootab[3];
         deadt = dead_time(om, bin);
+
         if (deadt < 1) {
           deadt = 1;
         }
@@ -783,12 +701,14 @@ void Fit_Gain_Simu(string wall = "") {
   newfile->Close();
   std::cout << "good end" << '\n';
 }
-//
+
 void Fit_flux() {
   LoadMC();
   Load_spectre();
   Load_dead_spectre();
   TH1::SetDefaultSumw2();
+
+  std::ofstream outFile("gain_data/Mean_value.txt");
 
   double logL, Chi2, param1, param2, param3, om_counting_Tl, om_counting_Bi, om_counting_K, eff_Tl, eff_Bi, eff_K, eff_error_Tl, eff_error_Bi, eff_error_K, om_counting_Tl_error, om_counting_Bi_error, om_counting_K_error;
   double int_cut_mc0, int_cut_mc1, int_cut_mc2, int_full_mc0, int_full_mc1, int_full_mc2;
@@ -838,14 +758,7 @@ void Fit_flux() {
   Result_tree.Branch("eff_error_Bi", &eff_error_Bi);
   Result_tree.Branch("eff_error_K", &eff_error_K);
 
-  std::ifstream  charge("gain_data/Resultat_mean_energie_charge_total.txt");
-  float charge_valeur_fit [712];
-  memset(charge_valeur_fit, -1, 712*sizeof(float));
-  int charge_om_num;
-  while (charge >> charge_om_num)
-  {
-    charge >> charge_valeur_fit[charge_om_num];
-  }
+
   double* eff = new double[2];
   double* rootab = new double[8];
   double facteur;
@@ -1023,7 +936,7 @@ void Fit_flux() {
     om_counting_K = mc2->Integral()*deadt/900*(sp_om_cut*(param3/int_cut_mc2));
     om_counting_K_error = mc2->Integral()*deadt/900*(sp_om_cut*(param3error/int_cut_mc2));
 
-
+    outFile << om << "\t" << gain << endl;
     Result_tree.Fill();
 
     delete mc0;
@@ -1218,7 +1131,7 @@ void eff_om_prep(string name) {
   TH1D energy_id_cut("e_id_cut", "e id cut ", 712, 0, 712);
 
   for (int i = 0; i < 1e5; i++) {
-  // for (int i = 0; i < tree->GetEntries(); i++) {
+    // for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
     if (i % 100000 == 0) {
       std::cout << "entry = " << i << '\n';
@@ -1591,17 +1504,55 @@ void fusion() {
 
 }
 
-int main(int argc, char const *argv[]){
-  for(int i = 0; i<argc; i++){
-    if (std::string(argv[i]) == "-XW" || std::string(argv[i]) =="-MWFR" || std::string(argv[i]) =="-MWIT" || std::string(argv[i]) =="-GV"){
-      Fit_Gain_Simu(argv[i]);
-      if(std::string(argv[i]) == "--distrib" || std::string(argv[i]) =="-d"){
-        distrib("roofit");
-      }
+void test_param(string input_file) {
+
+  double p1, p2, gain;
+  int om_number;
+  std::vector<int> *om_id = new std::vector<int>;
+  std::vector<int> *param_value = new std::vector<int>;
+
+  TFile *file = new TFile(Form("histo_fit/%s.root", input_file.c_str()), "READ");
+  TTree* tree = (TTree*)file->Get("Result_tree");
+  tree->SetBranchStatus("*",0);
+  tree->SetBranchStatus("om_number",1);
+  tree->SetBranchAddress("om_number", &om_number);
+  tree->SetBranchStatus("param1",1);
+  tree->SetBranchAddress("param1", &p1);
+  tree->SetBranchStatus("param2",1);
+  tree->SetBranchAddress("param2", &p2);
+  tree->SetBranchStatus("gain",1);
+  tree->SetBranchAddress("gain", &gain);
+
+  for (int i = 0; i < 712; i++) {
+    tree->GetEntry(i);
+    if (p1 < 0.105) {
+      om_id->push_back(om_number);
+      param_value->push_back(1);
+    }
+    else if (p2 > 0.598) {
+      om_id->push_back(om_number);
+      param_value->push_back(2);
     }
   }
-  return 0;
+  // Fit_Gain_Simu();
+
+
 }
+
+
+
+
+// int main(int argc, char const *argv[]){
+//   for(int i = 0; i<argc; i++){
+//     if (std::string(argv[i]) == "-XW" || std::string(argv[i]) =="-MWFR" || std::string(argv[i]) =="-MWIT" || std::string(argv[i]) =="-GV"){
+//       Fit_Gain_Simu(argv[i]);
+//       if(std::string(argv[i]) == "--distrib" || std::string(argv[i]) =="-d"){
+//         distrib("roofit");
+//       }
+//     }
+//   }
+//   return 0;
+// }
 
 void Fit_Gain_Res(string wall = "") {
   LoadMC();
