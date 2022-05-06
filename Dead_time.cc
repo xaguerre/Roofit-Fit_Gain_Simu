@@ -51,6 +51,8 @@ void dead_time(string run){
   tree->SetBranchAddress("tdc", &tdc);
   tree->SetBranchStatus("ch_lt",1);
   tree->SetBranchAddress("ch_lt", &ch_lt);
+  // tree->SetBranchStatus("ch_ht",1);
+  // tree->SetBranchAddress("ch_ht", &ch_ht);
   double compteur_time[717];
   memset(compteur_time, 0, 717*sizeof(double));
   double compteur_count[717];
@@ -59,34 +61,40 @@ void dead_time(string run){
   memset(compteur_chlt, 0, 717*sizeof(double));
   double run_time = 0;
   double cut_tdc = 0;
-  double tdc0;
+  double first_time = 86400;
+  double last_time = 0;
+
 
   for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
 
-    if (i == 0) {
-      tdc0 = tdc;
+      double this_time = tdc*6.25e-9;
+    if (this_time < first_time) {
+      first_time = this_time;
     }
-    if (i == tree->GetEntries() - 1) {
-      run_time = tdc - tdc0;
+    if (this_time > last_time) {
+      last_time = this_time;
     }
+
     if (i%10000 == 0 || i%9999 == 0) {
       // std::cout << "compteur_time = " << compteur_time[om] << " and lt_time = " << lt_time<< '\n';
     }
-    compteur_time[om] += (double)lt_time;
+    compteur_time[om] += 1.25e-9*(double)lt_time;
     compteur_count[om] += lt_counter;
-
-    if (ch_lt > 0 ) {
+    // if (ch_lt > 0 ||  ch_ht > 0) {
+    if (ch_lt > 0) {
       compteur_chlt[om]+= 1;
       // std::cout << "lt _counter = " << ch_lt << '\n';
     }
-    if (tdc-cut_tdc > 3e8) {
-      run_time+=(cut_tdc-tdc);
-    }
+    // if (tdc-cut_tdc > 3e8) {
+    //   run_time+=(cut_tdc-tdc);
+    // }
     cut_tdc = tdc;
-  }
 
-  for (int i = 0; i < 260; i++) {
+  }
+  run_time += last_time - first_time;
+
+  for (int i = 0; i < 712; i++) {
     std::cout <<"om : " << i << " ch_lt = " << compteur_chlt[i] << " and run time = " << run_time << " and count = " << compteur_count[i] << " and time = " << compteur_time[i] << '\n';
     deadt = (compteur_chlt[i]/run_time)/(compteur_count[i]/compteur_time[i]);
     hic = compteur_chlt[i]/compteur_count[i];
@@ -94,11 +102,12 @@ void dead_time(string run){
       deadt = 0;
       hic =0;
     }
+    om = i;
     std::cout << "deadt = " << deadt << " and hic = " << hic << '\n';
     Result_tree.Fill();
   }
 
-  TFile* newfile = new TFile(Form("deadt/deadt_cut_%s.root", run.c_str()),"RECREATE");
+  TFile* newfile = new TFile("deadt/deadt_cut.root","RECREATE");
   newfile->cd();
   Result_tree.Write();
   newfile->Close();
