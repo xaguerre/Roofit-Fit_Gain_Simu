@@ -390,8 +390,8 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   }
   std::cout << "nbin = " << nbin << '\n';
 
-  RooRealVar x("x", "x", 10000, 140000);
-  x.setBins(665);
+  RooRealVar x("x", "x", 10000, 130000);
+  x.setBins(615);
   RooDataHist Tl("Tl", "Tl", x, Import(*mc0));
   RooDataHist Bi("Bi", "Bi", x, Import(*mc1));
   RooDataHist K("K", "K", x, Import(*mc2));
@@ -480,7 +480,9 @@ double* roofitter(int om, double gain, double eres, TH1D* spectre_om, TH1D* mc0,
   TLatex l;
   l.SetTextFont(40);
   l.DrawLatex(90000, 80, Form("Khi2/NDF = %.2f",rootab[4]));
-  can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
+  // can->SaveAs(Form("OM_fit/om_%d/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, om, eres, gain, bin));
+  return rootab;
+  can->SaveAs(Form("OM_fit/best_fit/best_fit_om_%d_eres_%.2f_gain_%.0f_bin_%d.png", om, eres, gain, bin));
 
   delete miniChi;
   delete can;
@@ -520,7 +522,7 @@ void Fit_Gain_Simu() {
   int lim =0;
   double deadt;
   float gain;
-  TFile *newfile = new TFile("histo_fit/fit_pre_param_13.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/test2.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("Chi2", &Chi2);
   Result_tree.Branch("param1", &param1);
@@ -557,7 +559,7 @@ void Fit_Gain_Simu() {
   float min = 0.85;
   float max = 1.15;
 
-  for (int om = 0; om <260 ; om++)
+  for (int om = 116; om <117 ; om++)
   {
     TH3D* MC_Tl_208 = MC_chooser(om, 0);
     TH3D* MC_Bi_214 = MC_chooser(om, 1);
@@ -619,15 +621,15 @@ void Fit_Gain_Simu() {
     om_number = om;
     int eres = eres_chooser(om);
     int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
-    for (int gain_count = 0; gain_count <150; gain_count++) {
+    for (int gain_count = 85; gain_count <86; gain_count++) {
       // std::cout << (gain_bin_min + gain_bin_width*(gain_count-1))<< "   et    lim_inf = " << 1/(mean_erf*min) << "   sup  ="  << 1/(mean_erf*max) << '\n';
-      if (((gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && ((gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
+      // if (((gain_bin_min + gain_bin_width*(gain_count-1)) > mean_erf*min) && ((gain_bin_min + gain_bin_width*(gain_count-1))<mean_erf*max)){
+      if (gain_count == 85){
         spectre_om = spectre_charge_full(om);
 
         gain = (gain_bin_min + gain_bin_width*(gain_count-1));
         std::cout << "gain_count = " << gain_count << " and gain = " << gain << '\n';
-        // gain_count = 54;
-        // eres_count = 5;
+
         TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
         TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
         TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
@@ -666,17 +668,15 @@ void Fit_Gain_Simu() {
         Chi2 = rootab[4];
         param1 = rootab[1];
         param2 = rootab[2];
-        // param3 = rootab[3];
+        param3 = rootab[3];
         deadt = deadt_tab[om];
         std::cout << "deadt_t = " << deadt_tab[om] << '\n';
         delete mc0;
         delete mc1;
         delete mc2;
-        delete spectre_om;
         mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);
         mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);
         mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
-        spectre_om = spectre_charge_full(om);
 
         mc0->Scale((param1/int_cut_mc0)*spectre_om->Integral());
         om_counting_Tl = mc0->Integral();
@@ -709,25 +709,30 @@ void Fit_flux() {
 
   double logL, Chi2, param1, param2, param3, om_counting_Tl, om_counting_Bi, om_counting_K, eff_Tl, eff_Bi, eff_K, eff_error_Tl, eff_error_Bi, eff_error_K, om_counting_Tl_error, om_counting_Bi_error, om_counting_K_error;
   double int_cut_mc0, int_cut_mc1, int_cut_mc2, int_full_mc0, int_full_mc1, int_full_mc2;
-  float gain, eres = 0;
+  float gain;
+  float eres = 0;
   int om_number = 0;
   double mean_erf = 0;
   double om_flux_Tl, om_flux_Bi, om_flux_K;
   int lim =0;
-  float deadt;
-  double test;
+  double deadt;
+  float test;
 
-  TFile *gainfile = new TFile("histo_fit/distrib_test_.root", "READ");
+  double deadt_tab [712];
+  memset(deadt_tab, -1, 712*sizeof(double));
+  fdeadt(deadt_tab);
+
+  TFile *gainfile = new TFile("histo_fit/distrib_Good.root", "READ");
   TTree* tree = (TTree*)gainfile->Get("Result_tree");
   tree->SetBranchStatus("*",0);
   tree->SetBranchStatus("gain",1);
   tree->SetBranchAddress("gain", &test);
-  double gain_tab[712];
+  float gain_tab[712];
   for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
     gain_tab[i] = test;
   }
-  TFile *newfile = new TFile("histo_fit/fit_test3.root", "RECREATE");
+  TFile *newfile = new TFile("histo_fit/fit_test.root", "RECREATE");
   TTree Result_tree("Result_tree","");
   Result_tree.Branch("logL", &logL);
   Result_tree.Branch("Chi2", &Chi2);
@@ -811,54 +816,14 @@ void Fit_flux() {
     int eres_count = (eres-eres_bin_min)/eres_bin_width+1;
     spectre_om = spectre_charge_full(om);
     gain = gain_tab[om];
-    if (om == 192) {
-      gain = 17750;
-    }
-    if (om == 318) {
-      gain = 14500;
-    }
-    if (om == 493) {
-      gain = 29500;
-    }
-    if (om == 574) {
-      gain = 21250;
-    }
-    if (om == 575) {
-      gain = 17500;
-    }
-    if (om == 593) {
-      gain = 24250;
-    }
-    if (om == 594) {
-      gain = 23500;
-    }
-    if (om == 616) {
-      gain = 32000;
-    }
-    if (om == 662) {
-      gain = 12500;
-    }
-    if (om == 697) {
-      gain = 19000;
-    }
-    if (om == 9) {
-      gain = 25000;
-    }
+    std::cout << "gain = " << gain << '\n';
     int gain_count =((gain - 10000)/250) + 1;
 
     TH1D *mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);    // first MC histogram
     TH1D *mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
     TH1D *mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);    // second MC histogram
-    int bin = 1.1*gain*1024/200000.0/4 + 1;   // rebin 4
-    // int bin = 1.1*gain*1024/200000.0 + 1;
-
-    if (om == 570) {
-      delete spectre_om;
-      TFile *tfile = new TFile("histo_kolmo/histo_donee/histo_charge_amplitude_energie_611_570.root", "READ");
-      gROOT->cd();
-      TH2F* charge_spectre_570 = (TH2F*)tfile->Get("histo_pm_charge");
-      TH1D* spectre_om = charge_spectre_570->ProjectionY("charge570", 571, 571);
-    }
+    // int bin = 1.1*gain*1024/200000.0/4 + 1;   // rebin 4
+    int bin = 1.1*gain*1024/200000.0 + 1;
 
     int_full_mc0 = mc0->Integral();
     int_full_mc1 = mc2->Integral();
@@ -872,74 +837,44 @@ void Fit_flux() {
       spectre_om->SetBinError(i, 0);
     }
 
-    if (om < 520) {
-      for (int i = bin*4/1.1; i < 1024; i++) {
-        spectre_om->SetBinContent(i, 0);
-        spectre_om->SetBinError(i, 0);
-      }
+    for (int i = bin*4/1.1; i < 1024; i++) {
+      spectre_om->SetBinContent(i, 0);
+      spectre_om->SetBinError(i, 0);
     }
 
     int_cut_mc0 = mc0->Integral();
     int_cut_mc1 = mc1->Integral();
     int_cut_mc2 = mc2->Integral();
-    double sp_om_cut = spectre_om->Integral();
+
     roofitter(om, gain, eres, spectre_om, mc0, mc1, mc2, rootab, bin);
-    // return;
-    logL = rootab[0];
     Chi2 = rootab[4];
     param1 = rootab[1];
     param2 = rootab[2];
     param3 = rootab[3];
-    double param1error = rootab[5];
-    std::cout << "param1 = " << param1error << '\n';
-    double param2error = rootab[6];
-    double param3error = rootab[7];
-    deadt = dead_time(om, bin);
-    if (deadt < 1) {
-      deadt = 1;
-    }
+    deadt = deadt_tab[om];
+    std::cout << "deadt_t = " << deadt_tab[om]  << " and gain = " << gain << '\n';
     delete mc0;
     delete mc1;
     delete mc2;
-    delete spectre_om;
-
-
+    // delete spectre_om;
     mc0 = MC_Tl_208->ProjectionZ("Charge_Tl_208", eres_count, eres_count, gain_count, gain_count);
     mc1 = MC_Bi_214->ProjectionZ("Charge_Bi_214", eres_count, eres_count, gain_count, gain_count);
     mc2 = MC_K_40->ProjectionZ("Charge_K_40", eres_count, eres_count, gain_count, gain_count);
-    spectre_om = spectre_charge_full(om);
+    // spectre_om = spectre_charge_full(om);
 
-    for (int i = 0; i < bin; i++) {
-      mc0->SetBinContent(i, 0);
-      mc1->SetBinContent(i, 0);
-      mc2->SetBinContent(i, 0);
-      spectre_om->SetBinContent(i, 0);
-      spectre_om->SetBinError(i, 0);
-    }
+    mc0->Scale((param1/int_cut_mc0)*spectre_om->Integral());
+    om_counting_Tl = mc0->Integral();
+    mc1->Scale(spectre_om->Integral()*param2/int_cut_mc1);
+    om_counting_Bi = mc1->Integral();
+    mc2->Scale(spectre_om->Integral()*param3/int_cut_mc2);
+    om_counting_K = mc2->Integral();
 
-
-    // mc0->Scale(sp_om_cut*(param1/int_cut_mc0));
-    // mc1->Scale(sp_om_cut*param2/int_cut_mc1);
-    // mc2->Scale(sp_om_cut*param3/int_cut_mc2);
-
-    // for (int i = 0; i < gain*2*1024/200000.; i++) {
-    //   mc0->SetBinContent(i, 0);
-    // }
-
-    om_counting_Tl = mc0->Integral()*deadt/900*(sp_om_cut*(param1/int_cut_mc0));
-    om_counting_Tl_error = mc0->Integral()*deadt/900*(sp_om_cut*(param1error/int_cut_mc0));
-    om_counting_Bi = mc1->Integral()*deadt/900*(sp_om_cut*(param2/int_cut_mc1));
-    om_counting_Bi_error = mc1->Integral()*deadt/900*(sp_om_cut*(param2error/int_cut_mc1));
-    om_counting_K = mc2->Integral()*deadt/900*(sp_om_cut*(param3/int_cut_mc2));
-    om_counting_K_error = mc2->Integral()*deadt/900*(sp_om_cut*(param3error/int_cut_mc2));
-
-    outFile << om << "\t" << gain << endl;
     Result_tree.Fill();
-
     delete mc0;
     delete mc1;
     delete mc2;
     delete spectre_om;
+
   }
   newfile->cd();
   Result_tree.Write();
@@ -948,7 +883,7 @@ void Fit_flux() {
 }
 
 void distrib(string name) {
-  TFile *eff_file = new TFile(Form("histo_fit/%s.root", name.c_str()), "READ");
+  TFile *eff_file = new TFile(Form("histo_fit/run_611/%s.root", name.c_str()), "READ");
   // std::ofstream outFile("Best_Khi2.txt");
   int om_number =0;
   double Chi2, om_counting_Tl, om_counting_Bi, om_counting_K, counting_Tl, counting_Bi, counting_K, effTl, effBi, effK, eff_Tl, eff_Bi, eff_K;
@@ -1089,7 +1024,7 @@ void eff_om_prep(string name) {
   int om = 0;
   std::vector<int> *om_id = new std::vector<int>;
   std::vector<double> *energy = new std::vector<double>;
-  TFile *file = new TFile(Form("Histo_simu_new/Simu_%s_10G.root", name.c_str()), "READ");
+  TFile *file = new TFile(Form("Histo_simu_new/ancienne_simu_1G/Simu_%s_1G_OC.root", name.c_str()), "READ");
   TTree* tree = (TTree*)file->Get("Result_tree");
   tree->SetBranchStatus("*",0);
   tree->SetBranchStatus("om_id_new",1);
@@ -1106,8 +1041,7 @@ void eff_om_prep(string name) {
   TH1D energy_id("e_id", "e id ", 712, 0, 712);
   TH1D energy_id_cut("e_id_cut", "e id cut ", 712, 0, 712);
 
-  for (int i = 0; i < 1e5; i++) {
-    // for (int i = 0; i < tree->GetEntries(); i++) {
+  for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
     if (i % 100000 == 0) {
       std::cout << "entry = " << i << '\n';
@@ -1116,8 +1050,8 @@ void eff_om_prep(string name) {
       for (size_t j = 0; j < energy->size(); j++) {
         energy_id.Fill(om_id->at(k)-1);
         om = om_id->at(k)-1;
-        eff_tot = (energy->at(j))/5.0e9;
-        eff_tot_error = (sqrt(energy->at(j))/5.0e9);
+        // eff_tot = (energy->at(j))/5.0e8;
+        // eff_tot_error = (sqrt(energy->at(j))/5.0e8);
         if (energy->at(j) > 1) {
           energy_id_cut.Fill(om_id->at(k));
         }
@@ -1156,8 +1090,8 @@ void eff_om(string name) {
     int om_col = (i % 13);
     int om_row = (i / 13);
 
-    eff_tot = (eff_om_prep->GetBinContent(i))/5.0e9;
-    eff_tot_error = (sqrt(eff_om_prep->GetBinContent(i))/5.0e9);
+    eff_tot = (eff_om_prep->GetBinContent(i))/1.0e5;
+    eff_tot_error = (sqrt(eff_om_prep->GetBinContent(i))/1.0e5);
 
     eff_tot_histo.SetBinContent( om_row+1, om_col+1, eff_tot);
 
