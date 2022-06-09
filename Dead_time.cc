@@ -68,7 +68,7 @@ void dead_time(string run){
   for (int i = 0; i < tree->GetEntries(); i++) {
     tree->GetEntry(i);
 
-      double this_time = tdc*6.25e-9;
+    double this_time = tdc*6.25e-9;
     if (this_time < first_time) {
       first_time = this_time;
     }
